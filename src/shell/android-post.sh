@@ -4,6 +4,16 @@ if [ "x$TARGET_PRODUCT" == "x" ]; then
 	echo "WARNING: Its recommended to launch from android build"
 	echo "environment to take advantage of product/device-specific"
 	echo "functionality."
+else
+	lisadir="$(gettop)/$(get_build_var BOARD_LISA_TARGET_SCRIPTS)"
+
+	if [ -d $lisadir/targetdev ]; then
+		export PYTHONPATH=$lisadir:$PYTHONPATH
+		echo "Welcome to LISA $TARGET_PRODUCT environment"
+		echo "Target-specific scripts are located in $lisadir"
+	else
+		echo "LISA scripts don't exist for $TARGET_PRODUCT, skipping"
+	fi
 fi
 
 export PYTHONPATH=$LISA_HOME/../devlib:$PYTHONPATH

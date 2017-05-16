@@ -27,6 +27,12 @@ DEVMODE=${DEVMODE:-1}
 # Get base installation path of LISA
 export LISA_HOME="$(pwd)"
 
+# Run any android scripts before launching
+android_pre=$LISA_HOME/src/shell/android-pre.sh
+if [ -f $android_pre ]; then
+	source $android_pre;
+fi
+
 export PYTHONPATH=''
 export PYTHONPATH=$LISA_HOME/libs/utils:$PYTHONPATH
 export PYTHONPATH=$LISA_HOME/libs/wlgen:$PYTHONPATH
@@ -348,6 +354,13 @@ PS1="\[${LISASHELL_BLUE}\][LISAShell \[${LISASHELL_LCYAN}\]\W\[${LISASHELL_BLUE}
 
 # Dump out a nice LISA Shell logo
 clear
+
+# Android post shell initialization script
+android_post=$LISA_HOME/src/shell/android-post.sh
+if [ -f $android_post ]; then
+	source $android_post;
+fi
+
 echo -e '\E[37;44m'
 
 echo "                                                                               "

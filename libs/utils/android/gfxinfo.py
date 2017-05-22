@@ -47,6 +47,8 @@ class GfxInfo(object):
         with open(self.path) as f:
             content = f.readlines()
 
+        parsing_histogram = False
+
         # gfxinfo has several statistics of the format
         # <string>: <value>
         for line in content:
@@ -71,6 +73,22 @@ class GfxInfo(object):
             if tokens[1].endswith('ms'):
                 tokens[0] = tokens[0] + '_ms'
                 tokens[1] = tokens[1][:-2]
+            # Begin parsing the histogram of frame times
+            if tokens[0] == 'histogram':
+                parsing_histogram = True
+                self.__properties['histogram'] = []
+                line = line[11:]
+            # Extracts the frame time data into an array of tuples
+            # Ex: 5ms=50 6ms=60 7ms=70 ... -> [(5, 50), (6, 60), (7, 70), ...]
+            if parsing_histogram:
+                h_tokens = [x.rstrip() for x in line.split(' ')]
+                if 'ms=' in line:
+                    for h_value in [x.split('=') for x in h_tokens]:
+                        self.__properties['histogram'].append((int(h_value[0][:-2]), int(h_value[1])))
+                else:
+                    parsing_histogram = False
+                continue
+
             # Regular parsing
             self.__properties[tokens[0]] = get_value(tokens[1])
 

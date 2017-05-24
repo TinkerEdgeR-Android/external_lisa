@@ -288,6 +288,19 @@ class System(object):
         target.execute('dumpsys gfxinfo {} reset'.format(apk_name))
 
     @staticmethod
+    def surfaceflinger_reset(target, apk_name):
+        """
+        Reset SurfaceFlinger layer statistics for a given app.
+
+        :param target: instance of devlib Android target
+        :type target: devlib.target.AndroidTarget
+
+        :param apk_name: name of the apk
+        :type apk_name: str
+        """
+        target.execute('dumpsys SurfaceFlinger {} reset'.format(apk_name))
+
+    @staticmethod
     def gfxinfo_get(target, apk_name, out_file):
         """
         Collect frame statistics for the given app.
@@ -303,6 +316,23 @@ class System(object):
         """
         adb_command(target.adb_name,
                     GET_FRAMESTATS_CMD.format(apk_name, out_file))
+
+    @staticmethod
+    def surfaceflinger_get(target, apk_name, out_file):
+        """
+        Collect SurfaceFlinger layer statistics for the given app.
+
+        :param target: instance of devlib Android target
+        :type target: devlib.target.AndroidTarget
+
+        :param apk_name: name of the apk
+        :type apk_name: str
+
+        :param out_file: output file name
+        :type out_file: str
+        """
+        adb_command(target.adb_name,
+                    'shell dumpsys SurfaceFlinger {} > {}'.format(apk_name, out_file))
 
     @staticmethod
     def monkey(target, apk_name, event_count=1):

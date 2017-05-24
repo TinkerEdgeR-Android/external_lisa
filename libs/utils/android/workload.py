@@ -19,6 +19,9 @@ import logging
 import os
 import re
 
+from gfxinfo import GfxInfo
+from surfaceflinger import SurfaceFlinger
+
 from . import System
 
 class Workload(object):
@@ -33,7 +36,7 @@ class Workload(object):
         """
         Initialized workloads available on the specified test environment
 
-        test_env: target test environmen
+        test_env: target test environment
         """
         self._te = test_env
         self._target = test_env.target
@@ -85,9 +88,15 @@ class Workload(object):
 
     def run(self, out_dir, collect='',
             **kwargs):
-        raise RuntimeError('Not implemeted')
+        raise RuntimeError('Not implemented')
 
     def tracingStart(self):
+        # Reset the dumpsys data for the package
+        if 'gfxinfo' in self.collect:
+            System.gfxinfo_reset(self._target, self.package)
+        if 'surfaceflinger' in self.collect:
+            System.surfaceflinger_reset(self._target, self.package)
+        # Make sure ftrace and systrace are not both specified to be collected
         if 'ftrace' in self.collect and 'systrace' in self.collect:
             msg = 'ftrace and systrace cannot be used at the same time'
             raise ValueError(msg)
@@ -131,6 +140,16 @@ class Workload(object):
                     # Systrace expects <enter>
                     self._systrace_output.sendline('')
                 self._systrace_output.wait()
+        # Parse the data gathered from dumpsys gfxinfo
+        if 'gfxinfo' in self.collect:
+            dump_file = os.path.join(self.out_dir, 'dumpsys_gfxinfo.txt')
+            System.gfxinfo_get(self._target, self.package, dump_file)
+            self.gfxinfo = GfxInfo(dump_file)
+        # Parse the data gathered from dumpsys SurfaceFlinger
+        if 'surfaceflinger' in self.collect:
+            dump_file = os.path.join(self.out_dir, 'dumpsys_surfaceflinger.txt')
+            System.surfaceflinger_get(self._target, self.package, dump_file)
+            self.surfaceflinger = SurfaceFlinger(dump_file)
         # Dump a platform description
         self._te.platform_dump(self.out_dir)
 

@@ -20,6 +20,7 @@ import os
 import logging
 
 from subprocess import Popen, PIPE
+from time import sleep
 
 from android import Screen, System, Workload
 
@@ -52,6 +53,18 @@ JANKBENCH_BENCHMARK_DONE_RE = re.compile(
 
 JANKBENCH_DB_PATH = '/data/data/com.android.benchmark/databases/'
 JANKBENCH_DB_NAME = 'BenchmarkResults'
+
+# The amounts of time to collect energy for each test. Used when USB communication with the device
+# is disabled during energy collection to prevent it from interfering with energy sampling. Tests
+# may run longer or shorter than the amount of time energy is collected.
+JANKBENCH_ENERGY_DURATIONS = {
+    'list_view'         : 30,
+    'image_list_view'   : 30,
+    'shadow_grid'       : 30,
+    'low_hitrate_text'  : 30,
+    'high_hitrate_text' : 30,
+    'edit_text'         : 9,
+}
 
 class Jankbench(Workload):
     """
@@ -128,51 +141,73 @@ class Jankbench(Workload):
         self._log.info(test_cmd)
         self._target.execute(test_cmd);
 
-        # Parse logcat output lines
-        logcat_cmd = self._adb(
-                'logcat ActivityManager:* System.out:I *:S BENCH:*'\
-                .format(self._target.adb_name))
-        self._log.info(logcat_cmd)
+        if 'energy' in collect:
+            # Start collecting energy readings
+            self.tracingStart()
+            self._log.debug('Benchmark started!')
+            self._log.info('Running energy meter for {} seconds'
+                .format(iterations * JANKBENCH_ENERGY_DURATIONS[test_name]))
 
-        self._log.debug('Iterations:')
-        logcat = Popen(logcat_cmd, shell=True, stdout=PIPE)
-        while True:
+            # Sleep for the approximate amount of time the test should take to run the specified
+            # number of iterations.
+            for i in xrange(0, iterations):
+                sleep(JANKBENCH_ENERGY_DURATIONS[test_name])
+                self._log.debug('Iteration: %2d', i + 1)
 
-            # read next logcat line (up to max 1024 chars)
-            message = logcat.stdout.readline(1024)
+            # Stop collecting energy. The test may or may not be done at this point.
+            self._log.debug('Benchmark done!')
+            self.tracingStop()
+        else:
+            # Parse logcat output lines
+            logcat_cmd = self._adb(
+                    'logcat ActivityManager:* System.out:I *:S BENCH:*'\
+                    .format(self._target.adb_name))
+            self._log.info(logcat_cmd)
+            logcat = Popen(logcat_cmd, shell=True, stdout=PIPE)
+            self._log.debug('Iterations:')
+            while True:
 
-            # Benchmark start trigger
-            match = JANKBENCH_BENCHMARK_START_RE.search(message)
-            if match:
-                self.tracingStart()
-                self._log.debug('Benchmark started!')
+                # read next logcat line (up to max 1024 chars)
+                message = logcat.stdout.readline(1024)
 
-            # Benchmark completed trigger
-            match = JANKBENCH_BENCHMARK_DONE_RE.search(message)
-            if match:
-                self._log.debug('Benchmark done!')
-                self.tracingStop()
-                break
+                # Benchmark start trigger
+                match = JANKBENCH_BENCHMARK_START_RE.search(message)
+                if match:
+                    self.tracingStart()
+                    self._log.debug('Benchmark started!')
 
-            # Iteration completd
-            match = JANKBENCH_ITERATION_COUNT_RE.search(message)
-            if match:
-                self._log.debug('Iteration %2d:',
-                                int(match.group('iteration'))+1)
-            # Iteration metrics
-            match = JANKBENCH_ITERATION_METRICS_RE.search(message)
-            if match:
-                self._log.info('   Mean: %7.3f JankP: %7.3f StdDev: %7.3f Count Bad: %4d Count Jank: %4d',
-                               float(match.group('mean')),
-                               float(match.group('junk_p')),
-                               float(match.group('std_dev')),
-                               int(match.group('count_bad')),
-                               int(match.group('count_junk')))
+                # Benchmark completed trigger
+                match = JANKBENCH_BENCHMARK_DONE_RE.search(message)
+                if match:
+                    self._log.debug('Benchmark done!')
+                    self.tracingStop()
+                    break
+
+                # Iteration completed
+                match = JANKBENCH_ITERATION_COUNT_RE.search(message)
+                if match:
+                    self._log.debug('Iteration: %2d',
+                                    int(match.group('iteration'))+1)
+                # Iteration metrics
+                match = JANKBENCH_ITERATION_METRICS_RE.search(message)
+                if match:
+                    self._log.info('   Mean: %7.3f JankP: %7.3f StdDev: %7.3f Count Bad: %4d Count Jank: %4d',
+                                   float(match.group('mean')),
+                                   float(match.group('junk_p')),
+                                   float(match.group('std_dev')),
+                                   int(match.group('count_bad')),
+                                   int(match.group('count_junk')))
+
+        # Wait until the database file is available
+        db_adb = JANKBENCH_DB_PATH + JANKBENCH_DB_NAME
+        while (db_adb not in self._target.execute('ls {}'.format(db_adb), check_exit_code=False)):
+            sleep(1)
 
         # Get results
         self.db_file = os.path.join(out_dir, JANKBENCH_DB_NAME)
-        self._target.pull(JANKBENCH_DB_PATH + JANKBENCH_DB_NAME, self.db_file)
+        self._target.pull(db_adb, self.db_file)
 
+        # Stop the benchmark app
         System.force_stop(self._target, self.package, clear=True)
 
         # Go back to home screen

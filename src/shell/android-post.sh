@@ -11,6 +11,10 @@ else
 		export PYTHONPATH=$lisadir:$PYTHONPATH
 		echo "Welcome to LISA $TARGET_PRODUCT environment"
 		echo "Target-specific scripts are located in $lisadir"
+
+		monsoon_path="$ANDROID_BUILD_TOP/cts/tools/utils/"
+		export PATH="$monsoon_path:$PATH"
+		echo "Monsoon will run from: $monsoon_path"
 	else
 		echo "LISA scripts don't exist for $TARGET_PRODUCT, skipping"
 	fi

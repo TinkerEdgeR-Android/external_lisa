@@ -20,6 +20,11 @@ else
 	fi
 fi
 
+if [ -z  "$CATAPULT_HOME" ]; then
+        export CATAPULT_HOME=$LISA_HOME/../chromium-trace/catapult/
+        echo "Systrace will run from: $(readlink -f $CATAPULT_HOME)"
+fi
+
 export PYTHONPATH=$LISA_HOME/../devlib:$PYTHONPATH
 export PYTHONPATH=$LISA_HOME/../trappy:$PYTHONPATH
 export PYTHONPATH=$LISA_HOME/../bart:$PYTHONPATH

@@ -49,6 +49,13 @@ LATEST_LINK = 'results_latest'
 basepath = os.path.dirname(os.path.realpath(__file__))
 basepath = basepath.replace('/libs/utils', '')
 
+def os_which(file):
+    for path in os.environ["PATH"].split(os.pathsep):
+        if os.path.exists(os.path.join(path, file)):
+           return os.path.join(path, file)
+
+    return None
+
 class ShareState(object):
     __shared_state = {}
 
@@ -388,7 +395,13 @@ class TestEnv(ShareState):
                 os.environ['ANDROID_HOME'] = self.ANDROID_HOME
                 os.environ['CATAPULT_HOME'] = self.CATAPULT_HOME
             else:
-                raise RuntimeError('Android SDK not found, ANDROID_HOME must be defined!')
+                self._log.info('Android SDK not found as ANDROID_HOME not defined, using PATH for platform tools')
+                self._adb = os_which('adb')
+                self._fastboot = os_which('fastboot')
+                if self._adb:
+                    self._log.info('Using adb from ' + self._adb)
+                if self._fastboot:
+                    self._log.info('Using fastboot from ' + self._fastboot)
 
             self._log.info('External tools using:')
             self._log.info('   ANDROID_HOME: %s', self.ANDROID_HOME)

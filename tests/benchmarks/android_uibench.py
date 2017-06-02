@@ -152,25 +152,24 @@ governors = [
 
 tests = [
 # General
-    'DialogListActivity',
-    'FullscreenOverdrawActivity',
-    'GlTextureViewActivity',
-    'InvalidateActivity',
-    'TrivialAnimationActivity',
-    'TrivialListActivity',
-    'TrivialRecyclerViewActivity',
+    'UiBenchJankTests#testDialogListFling',
+    'UiBenchJankTests#testFullscreenOverdraw',
+    'UiBenchJankTests#testGLTextureView',
+    'UiBenchJankTests#testInvalidate',
+    'UiBenchJankTests#testTrivialAnimation',
+    'UiBenchJankTests#testTrivialListViewFling',
+    'UiBenchJankTests#testTrivialRecyclerListViewFling',
 # Inflation
-    'InflatingListActivity',
+    'UiBenchJankTests#testInflatingListViewFling',
 # Rendering
-    'BitmapUploadActivity',
-    'ShadowGridActivity',
+    'UiBenchRenderingJankTests#testBitmapUploadJank',
+    'UiBenchRenderingJankTests#testShadowGridListFling',
 # Text
-    'EditTextTypeActivity',
-    'TextCacheHighHitrateActivity',
-    'TextCacheLowHitrateActivity',
+    'UiBenchTextJankTests#testEditTextTyping',
+    'UiBenchTextJankTests#testLayoutCacheHighHitrateFling',
+    'UiBenchTextJankTests#testLayoutCacheLowHitrateFling',
 # Transitions
-    'ActivityTransition',
-    'ActivityTransitionDetails',
+    'UiBenchTransitionsJankTests#testActivityTransitionsAnimation',
 ]
 
 tests_remaining = len(governors) * len(tests)

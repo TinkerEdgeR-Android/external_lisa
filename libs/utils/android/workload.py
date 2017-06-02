@@ -64,7 +64,12 @@ class Workload(object):
         _log.debug('Building list of available workloads...')
         for sc in Workload.__subclasses__():
             _log.debug('Checking workload [%s]...', sc.__name__)
-            if sc.package in cls._packages:
+
+            required_packages = [sc.package]
+            if hasattr(sc, 'test_package'):
+                required_packages.append(sc.test_package)
+
+            if all(p in cls._packages for p in required_packages):
                 cls._availables[sc.__name__.lower()] = sc
 
         _log.info('Supported workloads available on target:')

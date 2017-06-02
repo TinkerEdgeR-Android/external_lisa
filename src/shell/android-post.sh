@@ -11,10 +11,6 @@ else
 		export PYTHONPATH=$lisadir:$PYTHONPATH
 		echo "Welcome to LISA $TARGET_PRODUCT environment"
 		echo "Target-specific scripts are located in $lisadir"
-
-		monsoon_path="$ANDROID_BUILD_TOP/cts/tools/utils/"
-		export PATH="$monsoon_path:$PATH"
-		echo "Monsoon will run from: $monsoon_path"
 	else
 		echo "LISA scripts don't exist for $TARGET_PRODUCT, skipping"
 	fi
@@ -24,6 +20,10 @@ if [ -z  "$CATAPULT_HOME" ]; then
         export CATAPULT_HOME=$LISA_HOME/../chromium-trace/catapult/
         echo "Systrace will run from: $(readlink -f $CATAPULT_HOME)"
 fi
+
+monsoon_path="$LISA_HOME/../../cts/tools/utils/"
+export PATH="$monsoon_path:$PATH"
+echo "Monsoon will run from: $(readlink -f $monsoon_path/monsoon.py)"
 
 export PYTHONPATH=$LISA_HOME/../devlib:$PYTHONPATH
 export PYTHONPATH=$LISA_HOME/../trappy:$PYTHONPATH

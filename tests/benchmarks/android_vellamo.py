@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/env python
 
 import os
 from time import sleep
@@ -19,6 +19,7 @@ class VellamoTest(LisaBenchmark):
         # Define devlib modules to load
         "modules"     : [
             'cpufreq',
+            'cpuidle'
         ],
 
         # FTrace events to collect for all the tests configuration which have
@@ -43,10 +44,8 @@ class VellamoTest(LisaBenchmark):
 
         # Default EnergyMeter Configuration
         "emeter" : {
-            "instrument" : "acme",
-            "channel_map" : {
-                "Device0" : 0,
-            }
+            'instrument': 'monsoon',
+            'conf': { }
         },
 
         # Tools required by the experiments

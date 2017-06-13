@@ -78,9 +78,7 @@ class Trace(object):
                  normalize_time=True,
                  trace_format='FTrace',
                  plots_dir=None,
-                 plots_prefix='',
-                 event_callbacks={},
-                 build_df=True):
+                 plots_prefix=''):
 
         # The platform used to run the experiments
         self.platform = platform
@@ -110,10 +108,6 @@ class Trace(object):
         # List of events required by user
         self.events = []
 
-        # Stuff for event callback support
-        self.event_callbacks = event_callbacks
-        self.build_df = build_df
-
         # List of events available in the parsed trace
         self.available_events = []
 
@@ -141,11 +135,6 @@ class Trace(object):
         self.__registerTraceEvents(events)
         self.__parseTrace(data_dir, tasks, window, normalize_time,
                           trace_format)
-
-        if not self.build_df:
-            self._log.info('Data frames not built for the trace')
-            return
-
         self.__computeTimeSpan()
 
         # Minimum and Maximum x_time to use for all plots
@@ -253,9 +242,7 @@ class Trace(object):
             raise ValueError("Unknown trace format {}".format(trace_format))
 
         self.ftrace = trace_class(path, scope="custom", events=self.events,
-                                  window=window, normalize_time=normalize_time,
-                                  event_callbacks=self.event_callbacks,
-                                  build_df=self.build_df)
+                                  window=window, normalize_time=normalize_time)
 
         # Load Functions profiling data
         has_function_stats = self._loadFunctionsStats(path)
@@ -265,8 +252,6 @@ class Trace(object):
         if len(self.available_events) == 0:
             if has_function_stats:
                 self._log.info('Trace contains only functions stats')
-                return
-            elif not self.build_df:
                 return
             raise ValueError('The trace does not contain useful events '
                              'nor function stats')

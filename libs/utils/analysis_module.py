@@ -39,6 +39,12 @@ class AnalysisModule(object):
 
         self._dfg_trace_event = trace._dfg_trace_event
 
+        trace._registerDataFrameGetters(self)
+
+        # Further initialization not possible if platform info is missing
+        if not self._platform:
+            return
+
         # By default assume SMP system
         self._big_cap = 1024
         self._little_cap = 1024
@@ -63,7 +69,5 @@ class AnalysisModule(object):
             self._log.debug('Parsing SMP clusters')
             for cid in self._platform['clusters']:
                 self._big_cpus.append(self._platform['clusters'][cid])
-
-        trace._registerDataFrameGetters(self)
 
 # vim :set tabstop=4 shiftwidth=4 expandtab

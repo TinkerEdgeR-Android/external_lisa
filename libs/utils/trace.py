@@ -256,16 +256,17 @@ class Trace(object):
             raise ValueError('The trace does not contain useful events '
                              'nor function stats')
 
-        # Setup internal data reference to interesting events/dataframes
-
-        self._sanitize_SchedLoadAvgCpu()
-        self._sanitize_SchedLoadAvgTask()
-        self._sanitize_SchedCpuCapacity()
-        self._sanitize_SchedBoostCpu()
-        self._sanitize_SchedBoostTask()
-        self._sanitize_SchedEnergyDiff()
-        self._sanitize_SchedOverutilized()
-        self._sanitize_CpuFrequency()
+        # Santization not possible if platform missing
+        if not self.platform:
+            # Setup internal data reference to interesting events/dataframes
+            self._sanitize_SchedLoadAvgCpu()
+            self._sanitize_SchedLoadAvgTask()
+            self._sanitize_SchedCpuCapacity()
+            self._sanitize_SchedBoostCpu()
+            self._sanitize_SchedBoostTask()
+            self._sanitize_SchedEnergyDiff()
+            self._sanitize_SchedOverutilized()
+            self._sanitize_CpuFrequency()
 
         self.__loadTasksNames(tasks)
 

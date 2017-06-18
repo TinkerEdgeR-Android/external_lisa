@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/python
 
 import os
 from time import sleep
@@ -19,7 +19,6 @@ class UiBenchTest(LisaBenchmark):
         # Define devlib modules to load
         "modules"     : [
             'cpufreq',
-            'cpuidle'
         ],
 
         # FTrace events to collect for all the tests configuration which have
@@ -44,8 +43,10 @@ class UiBenchTest(LisaBenchmark):
 
         # Default EnergyMeter Configuration
         "emeter" : {
-            'instrument': 'monsoon',
-            'conf': { }
+            "instrument" : "acme",
+            "channel_map" : {
+                "Device0" : 0,
+            }
         },
 
         # Tools required by the experiments

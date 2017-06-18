@@ -80,10 +80,8 @@ class LisaBenchmark(object):
 
         # Default EnergyMeter Configuration
         "emeter" : {
-            "instrument" : "acme",
-            "channel_map" : {
-                "Device0" : 0,
-            }
+            "instrument" : "monsoon",
+            "conf" : { }
         },
 
         # Tools required by the experiments

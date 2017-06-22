@@ -50,7 +50,7 @@ class System(object):
         device = target.conf.get('device', '')
         if device:
             device = "-e {}".format(device)
-        systrace_pattern = "{} {} -o {} {}"
+        systrace_pattern = "{} {} -o {} {} -b 40000"
         trace_cmd = systrace_pattern.format(systrace_path, device,
                                             trace_file, " ".join(events))
         if time is not None:

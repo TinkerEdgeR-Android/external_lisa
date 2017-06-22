@@ -97,6 +97,8 @@ class Workload(object):
         raise RuntimeError('Not implemented')
 
     def tracingStart(self):
+        # Try to keep the screen on during any data collection
+        self._target.execute('svc power stayon true')
         # Reset the dumpsys data for the package
         if 'gfxinfo' in self.collect:
             System.gfxinfo_reset(self._target, self.package)
@@ -158,6 +160,8 @@ class Workload(object):
             self.surfaceflinger = SurfaceFlinger(dump_file)
         # Dump a platform description
         self._te.platform_dump(self.out_dir)
+        # Restore automatic screen off (Hack)
+        self._target.execute('svc power stayon false')
 
     def traceShow(self):
         """

@@ -5,7 +5,7 @@ import trappy
 import argparse
 
 EventData = namedtuple('EventData', ['time', 'event', 'data'])
-LatData = namedtuple('LatData', ['pid', 'switch_data', 'wake_data', 'last_wake_data', 'running', 'wake_pend', 'latency'])
+LatData = namedtuple('LatData', ['pid', 'switch_data', 'wake_data', 'last_wake_data', 'running', 'wake_pend', 'latency', 'lat_total'])
 
 # path_to_html = "/home/joelaf/repo/catapult/systrace/trace_sf-dispsync_rt_pull_fail_1504ms.html"
 # path_to_html   = "/home/joelaf/Downloads/trace_sf_late_wakeup_ipi.html"
@@ -24,6 +24,9 @@ parser.add_argument('--normalize', dest='normalize', action='store_true', defaul
 
 parser.add_argument('--rows', dest='nrows', action='store', default=20, type=int,
                     help='normalize time')
+
+parser.add_argument('--total', dest='lat_total', action='store_true', default=False,
+                    help='sort by total runnable time')
 
 args = parser.parse_args()
 
@@ -100,10 +103,13 @@ def switch_cb(data):
     if debug: print "recording"
     # Measure latency
     lat = time - latpids[pid].last_wake_data.time
+    total = latpids[pid].lat_total + lat
+    latpids[pid] = latpids[pid]._replace(lat_total=total)
+
     if lat > latpids[pid].latency:
         latpids[pid] = LatData(pid, switch_data = e,
                                wake_data = latpids[pid].last_wake_data,
-                               last_wake_data=None, latency=lat, running=1, wake_pend=0)
+                               last_wake_data=None, latency=lat, lat_total=latpids[pid].lat_total, running=1, wake_pend=0)
         return
     latpids[pid] = latpids[pid]._replace(running=1, wake_pend=0)
 
@@ -126,7 +132,7 @@ def wake_cb(data):
     if debug: print "\nProcessing wake pid=" + str(pid) + " time=" + str(time)
     if  not latpids.has_key(pid):
         latpids[pid] = LatData(pid, switch_data=None, wake_data=None,
-                last_wake_data = e, running=0, latency=-1, wake_pend=1)
+                last_wake_data = e, running=0, latency=-1, lat_total=0, wake_pend=1)
         if debug: print "new wakeup"
         return
 
@@ -145,19 +151,24 @@ systrace_obj.run_event_callbacks({ "sched_switch": switch_cb, "sched_wakeup": wa
                           "sched_waking": wake_cb })
 
 # Print the results: PID, latency, start, end, sort
-result = sorted(latpids.items(), key=lambda x: x[1].latency, reverse=True)
+if args.lat_total:
+    result = sorted(latpids.items(), key=lambda x: x[1].lat_total, reverse=True)
+else:
+    result = sorted(latpids.items(), key=lambda x: x[1].latency, reverse=True)
+
 print "PID".ljust(10) + "\t" + "name".ljust(20) + "\t" + "latency (secs)".ljust(20) + \
-      "\t" + "start time".ljust(20) + "\t" + "end time".ljust(20)
+      "\t" + "start time".ljust(20) + "\t" + "end time".ljust(20) + "\t" + "total (secs)".ljust(20)
 for r in result[:nrows]:
 	l = r[1] # LatData named tuple
 	if l.pid != r[0]:
 		raise RuntimeError("BUG: pid inconsitency found") # Sanity check
         wake_time   = l.wake_data.time
         switch_time = l.switch_data.time
+        total = l.lat_total
 
 	print str(r[0]).ljust(10) + "\t" + str(l.wake_data.data['comm']).ljust(20) + "\t" + \
 		  str(l.latency).ljust(20)[:20] + "\t" + str(wake_time).ljust(20)[:20] + \
-		  "\t" + str(switch_time).ljust(20)[:20]
+		  "\t" + str(switch_time).ljust(20)[:20] + "\t" + str(total).ljust(20)[:20]
 
 #############################################################
 ## Debugging aids to print all events in a given time range #

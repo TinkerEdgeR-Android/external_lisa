@@ -153,6 +153,21 @@ class System(object):
         target.execute('am start -a {} {}'.format(action, action_args))
 
     @staticmethod
+    def screen_always_on(target, enable=True):
+        """
+        Keep the screen always on
+
+        :param enable: True or false
+        """
+        param = 'true'
+        if not enable:
+            param = 'false'
+
+        log = logging.getLogger('System')
+        log.info('Setting screen always on to {}'.format(param))
+        target.execute('svc power stayon {}'.format(param))
+
+    @staticmethod
     def force_stop(target, apk_name, clear=False):
         """
         Stop the application and clear its data if necessary.

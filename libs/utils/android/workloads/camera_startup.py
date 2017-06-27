@@ -58,6 +58,8 @@ class CameraStartup(Workload):
         :type collect: list(str)
         """
 
+        self._log.info("Running CameraStartup for {}s and collecting {}".format(duration_s, collect))
+
         # Keep track of mandatory parameters
         self.out_dir = out_dir
         self.collect = collect

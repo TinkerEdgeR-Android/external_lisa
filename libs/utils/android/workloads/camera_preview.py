@@ -57,6 +57,7 @@ class CameraPreview(Workload):
             - any combination of the above
         :type collect: list(str)
         """
+        self._log.info("Running CameraPreview for {}s and collecting {}".format(duration_s, collect))
 
         # Keep track of mandatory parameters
         self.out_dir = out_dir

@@ -121,7 +121,7 @@ class Workload(object):
             self._trace_time = match.group(1) if match else None
             self._log.info('Systrace START')
             self._systrace_output = System.systrace_start(
-                self._te, self.trace_file, self._trace_time)
+                self._te, self.trace_file, self._trace_time, conf=self._te.conf)
         # Initialize energy meter results
         if 'energy' in self.collect and self._te.emeter:
             self._te.emeter.reset()

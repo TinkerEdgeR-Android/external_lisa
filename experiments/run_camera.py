@@ -27,7 +27,7 @@ parser.add_argument('--collect', dest='collect', action='store', default='systra
                     help='what to collect (default systrace)')
 
 parser.add_argument('--duration', dest='duration_s', action='store',
-                    default=30, type=int,
+                    type=int,
                     help='Duration of test (default 30s)')
 
 parser.add_argument('--serial', dest='serial', action='store',
@@ -53,8 +53,12 @@ def experiment():
         pass
     os.makedirs(outdir)
 
-    # Run UiBench
-    wload.run(outdir, duration_s=args.duration_s, collect=args.collect)
+    # Run Camera
+    # Note: The default time duration of the test is specificified within the workload
+    if args.duration_s:
+        wload.run(outdir, duration_s=args.duration_s, collect=args.collect)
+    else:
+        wload.run(outdir, collect=args.collect)
 
     # Dump platform descriptor
     te.platform_dump(te.res_dir)
@@ -90,6 +94,10 @@ my_conf = {
     "emeter" : {
         'instrument': 'monsoon',
         'conf': { }
+    },
+
+    "systrace": {
+        'extra_categories': ['camera']
     },
 
     # Tools required by the experiments

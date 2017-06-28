@@ -19,6 +19,7 @@ import pandas as pd
 import sqlite3
 import argparse
 import shutil
+import time
 
 parser = argparse.ArgumentParser(description='UiBench tests')
 
@@ -42,6 +43,13 @@ parser.add_argument('--serial', dest='serial', action='store',
 args = parser.parse_args()
 
 def post_collect_start():
+    # Since systrace starts asynchronously, wait for trace to start
+    while True:
+        if te.target.execute('cat /d/tracing/tracing_on')[0] == "0":
+            time.sleep(0.1)
+            continue
+        break
+
     cgroup = te.target.cgroups.controllers['cpuset'].cgroup('/foreground')
     cgroup.trace_cgroup_tasks()
 

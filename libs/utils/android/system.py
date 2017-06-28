@@ -31,9 +31,25 @@ class System(object):
 
     @staticmethod
     def systrace_start(target, trace_file, time=None,
-                       events=['gfx', 'view', 'sched', 'freq', 'idle']):
-
+                       events=['gfx', 'view', 'sched', 'freq', 'idle'],
+                       conf=None):
+        buffsize = "40000"
         log = logging.getLogger('System')
+
+        # Override systrace defaults from target conf
+        if conf and ('systrace' in conf):
+            if 'categories' in conf['systrace']:
+                events = conf['systrace']['categories']
+            if 'extra_categories' in conf['systrace']:
+                events += conf['systrace']['extra_categories']
+            if 'buffsize' in conf['systrace']:
+                buffsize = int(conf['systrace']['buffsize'])
+            if 'extra_events' in conf['systrace']:
+                for ev in conf['systrace']['extra_events']:
+                    log.info("systrace_start: Enabling extra ftrace event {}".format(ev))
+                    ev_file = target.target.execute("ls /sys/kernel/debug/tracing/events/*/{}/enable".format(ev))
+                    cmd = "echo 1 > {}".format(ev_file)
+                    target.target.execute(cmd, as_root=True)
 
         # Check which systrace binary is available under CATAPULT_HOME
         for systrace in ['systrace.py', 'run_systrace.py']:
@@ -50,9 +66,9 @@ class System(object):
         device = target.conf.get('device', '')
         if device:
             device = "-e {}".format(device)
-        systrace_pattern = "{} {} -o {} {} -b 40000"
+        systrace_pattern = "{} {} -o {} {} -b {}"
         trace_cmd = systrace_pattern.format(systrace_path, device,
-                                            trace_file, " ".join(events))
+                                            trace_file, " ".join(events), buffsize)
         if time is not None:
             trace_cmd += " -t {}".format(time)
 

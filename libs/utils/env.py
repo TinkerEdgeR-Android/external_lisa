@@ -145,6 +145,17 @@ class TestEnv(ShareState):
             buffsize
                 Size of buffer. Default is 10240.
 
+        **systrace**
+            Configuration for systrace. Dictionary with keys:
+            categories:
+                overide the list of categories enabled
+            extra_categories:
+                append to the default list of categories
+            extra_events:
+                additional ftrace events to manually enable during systrac'ing
+            buffsize:
+                Size of ftrace buffer that systrace uses
+
         **results_dir**
             location of results of the experiments
 

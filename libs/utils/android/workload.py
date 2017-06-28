@@ -47,6 +47,9 @@ class Workload(object):
         self.trace_file = None
         self.nrg_report = None
 
+        # Hooks to run at different points of workload execution
+        self.hooks = {}
+
     def _adb(self, cmd):
         return 'adb -s {} {}'.format(self._target.adb_name, cmd)
 
@@ -92,6 +95,12 @@ class Workload(object):
 
         return cls._availables[name.lower()](test_env)
 
+    def add_hook(self, hook, hook_fn):
+        allowed = ['post_collect_start']
+        if hook not in allowed:
+            return
+        self.hooks[hook] = hook_fn
+
     def run(self, out_dir, collect='',
             **kwargs):
         raise RuntimeError('Not implemented')
@@ -121,11 +130,16 @@ class Workload(object):
             self._trace_time = match.group(1) if match else None
             self._log.info('Systrace START')
             self._systrace_output = System.systrace_start(
-                self._te, self.trace_file, self._trace_time)
+                self._te, self.trace_file, self._trace_time, conf=self._te.conf)
         # Initialize energy meter results
         if 'energy' in self.collect and self._te.emeter:
             self._te.emeter.reset()
             self._log.info('Energy meter STARTED')
+        # Run post collect hooks passed added by the user of wload object
+        if 'post_collect_start' in self.hooks:
+            hookfn = self.hooks['post_collect_start']
+            self._log.info("Running post collect startup hook {}".format(hookfn.__name__))
+            hookfn()
 
     def tracingStop(self):
         # Collect energy meter results

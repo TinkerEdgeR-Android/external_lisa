@@ -26,9 +26,9 @@ from android import Screen, System
 from android.workload import Workload
 
 
-class CameraPreview(Workload):
+class CameraStartup(Workload):
     """
-    Android CameraPreview workload
+    Android CameraStartup workload
     """
 
     # Package required by this workload
@@ -36,13 +36,13 @@ class CameraPreview(Workload):
     action = 'android.intent.action.MAIN'
 
     def __init__(self, test_env):
-        super(CameraPreview, self).__init__(test_env)
-        self._log = logging.getLogger('CameraPreview')
+        super(CameraStartup, self).__init__(test_env)
+        self._log = logging.getLogger('CameraStartup')
         self._log.debug('Workload created')
 
-    def run(self, out_dir, duration_s=30, collect='surfaceflinger'):
+    def run(self, out_dir, duration_s=10, collect='surfaceflinger'):
         """
-        Run a camera preview workload
+        Run a camera startup workload
 
         :param out_dir: Path to experiment directory where to store results.
         :type out_dir: str
@@ -57,7 +57,8 @@ class CameraPreview(Workload):
             - any combination of the above
         :type collect: list(str)
         """
-        self._log.info("Running CameraPreview for {}s and collecting {}".format(duration_s, collect))
+
+        self._log.info("Running CameraStartup for {}s and collecting {}".format(duration_s, collect))
 
         # Keep track of mandatory parameters
         self.out_dir = out_dir
@@ -72,17 +73,17 @@ class CameraPreview(Workload):
         # Set min brightness
         Screen.set_brightness(self._target, auto=False, percent=0)
 
-        # Use the monkey tool to start CameraPreview
-        # This allows to subsequently set the screen orientation to LANDSCAPE
-        # and to reset the frame statistics.
-        System.monkey(self._target, self.package)
-
         # Force screen in PORTRAIT  mode
         Screen.set_orientation(self._target, portrait=True)
 
-        sleep(2)
+        sleep(1)
 
         self.tracingStart()
+        # Wait for a few seconds so that you can clear see start of trace and start of camera app
+        sleep(3)
+
+        # Use the monkey tool to start CameraStartup
+        System.monkey(self._target, self.package)
 
         sleep(duration_s)
 

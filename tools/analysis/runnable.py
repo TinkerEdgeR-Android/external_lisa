@@ -28,6 +28,12 @@ parser.add_argument('--rows', dest='nrows', action='store', default=20, type=int
 parser.add_argument('--total', dest='lat_total', action='store_true', default=False,
                     help='sort by total runnable time')
 
+parser.add_argument('--start-time', dest='start_time', action='store', default=0, type=float,
+                    help='trace window start time')
+
+parser.add_argument('--end-time', dest='end_time', action='store', default=None, type=float,
+                    help='trace window end time')
+
 args = parser.parse_args()
 
 path_to_html = args.trace_file
@@ -144,8 +150,14 @@ def wake_cb(data):
     if debug: print "recording wake"
     latpids[pid] = latpids[pid]._replace(last_wake_data = e, wake_pend=1)
 
+
+if args.normalize:
+    kwargs = { 'window': (args.start_time, args.end_time) }
+else:
+    kwargs = { 'abs_window': (args.start_time, args.end_time) }
+
 systrace_obj = trappy.SysTrace(name="systrace", path=path_to_html, \
-        scope="sched", events=["sched_switch", "sched_wakeup", "sched_waking"], normalize_time=args.normalize)
+        scope="sched", events=["sched_switch", "sched_wakeup", "sched_waking"], normalize_time=args.normalize, **kwargs)
 
 systrace_obj.run_event_callbacks({ "sched_switch": switch_cb, "sched_wakeup": wake_cb, \
                           "sched_waking": wake_cb })

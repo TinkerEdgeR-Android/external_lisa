@@ -36,6 +36,10 @@ class System(object):
         buffsize = "40000"
         log = logging.getLogger('System')
 
+        # Android needs good TGID caching support, until atrace has it,
+        # just increase the cache size to avoid missing TGIDs (and also comms)
+        target.target.execute("echo 8192 > /sys/kernel/debug/tracing/saved_cmdlines_size")
+
         # Override systrace defaults from target conf
         if conf and ('systrace' in conf):
             if 'categories' in conf['systrace']:

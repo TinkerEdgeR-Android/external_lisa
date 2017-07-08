@@ -140,12 +140,15 @@ class ResidencyAnalysis(AnalysisModule):
         for pid in self.pid_list:
             dict_ret = {}
             total = 0
+            dict_ret['name'] = self._trace.getTaskByPid(pid)[0]
+            dict_ret['tgid'] = -1 if not self.pid_tgid.has_key(pid) else self.pid_tgid[pid]
             for cpunr in range(0, self.ncpus):
+                cpu_key = 'cpu_{}'.format(cpunr)
                 try:
-                    dict_ret[str(cpunr)] = self.pid_residency[cpunr][pid].total_time
+                    dict_ret[cpu_key] = self.pid_residency[cpunr][pid].total_time
                 except:
-                    dict_ret[str(cpunr)] = 0
-                total += dict_ret[str(cpunr)]
+                    dict_ret[cpu_key] = 0
+                total += dict_ret[cpu_key]
 
             dict_ret['total'] = total
             yield dict_ret

@@ -42,6 +42,10 @@ parser.add_argument('--serial', dest='serial', action='store',
 
 args = parser.parse_args()
 
+def trace_cgroup(controller, cgroup):
+    cgroup = te.target.cgroups.controllers[controller].cgroup('/' + cgroup)
+    cgroup.trace_cgroup_tasks()
+
 def post_collect_start():
     # Since systrace starts asynchronously, wait for trace to start
     while True:
@@ -50,8 +54,18 @@ def post_collect_start():
             continue
         break
 
-    cgroup = te.target.cgroups.controllers['cpuset'].cgroup('/foreground')
-    cgroup.trace_cgroup_tasks()
+    trace_cgroup('schedtune', '')           # root
+    trace_cgroup('schedtune', 'top-app')
+    trace_cgroup('schedtune', 'foreground')
+    trace_cgroup('schedtune', 'background')
+    trace_cgroup('schedtune', 'rt')
+
+    trace_cgroup('cpuset', '')              # root
+    trace_cgroup('cpuset', 'top-app')
+    trace_cgroup('cpuset', 'foreground')
+    trace_cgroup('cpuset', 'background')
+    trace_cgroup('cpuset', 'system-background')
+
 
 def experiment():
     # Get workload

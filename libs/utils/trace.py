@@ -737,7 +737,12 @@ class Trace(object):
         def sanitize_cgroup_event(name):
             if not name in self.available_events:
                 return
+
             df = self._dfg_trace_event(name)
+
+            if len(df.groupby(level=0).filter(lambda x: len(x) > 1)) > 0:
+                self._log.warning('Timstamp Collisions seen in {} event!'.format(name))
+
             df = self._helper_sanitize_CgroupAttachTask(df, self.cgroup_info['cgroups'],
                                               self.cgroup_info['controller_ids'])
             getattr(self.ftrace, name).data_frame = df

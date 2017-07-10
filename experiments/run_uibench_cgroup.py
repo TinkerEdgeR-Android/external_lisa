@@ -23,7 +23,7 @@ import time
 
 parser = argparse.ArgumentParser(description='UiBench tests')
 
-parser.add_argument('--out_prefix', dest='out_prefix', action='store', default='default',
+parser.add_argument('--out_prefix', dest='out_prefix', action='store', default='cgroup',
                     help='prefix for out directory')
 
 parser.add_argument('--collect', dest='collect', action='store', default='systrace',
@@ -121,7 +121,8 @@ my_conf = {
     },
 
     "systrace": {
-        'extra_events': ['cgroup_attach_task']
+        # Mandatory events for CGroup tracing
+        'extra_events': ['cgroup_attach_task', 'sched_process_fork']
     },
 
     # Tools required by the experiments

@@ -390,6 +390,16 @@ class System(object):
         target.execute('dumpsys SurfaceFlinger {} reset'.format(apk_name))
 
     @staticmethod
+    def logcat_reset(target):
+        """
+        Clears the logcat buffer.
+
+        :param target: instance of devlib Android target
+        :type target: devlib.target.AndroidTarget
+        """
+        target.execute('logcat -c')
+
+    @staticmethod
     def gfxinfo_get(target, apk_name, out_file):
         """
         Collect frame statistics for the given app.
@@ -422,6 +432,19 @@ class System(object):
         """
         adb_command(target.adb_name,
                     'shell dumpsys SurfaceFlinger {} > {}'.format(apk_name, out_file))
+
+    @staticmethod
+    def logcat_get(target, out_file):
+        """
+        Collect the logs from logcat.
+
+        :param target: instance of devlib Android target
+        :type target: devlib.target.AndroidTarget
+
+        :param out_file: output file name
+        :type out_file: str
+        """
+        adb_command(target.adb_name, 'logcat * -d > {}'.format(out_file))
 
     @staticmethod
     def monkey(target, apk_name, event_count=1):

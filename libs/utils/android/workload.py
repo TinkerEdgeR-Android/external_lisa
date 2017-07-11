@@ -113,6 +113,8 @@ class Workload(object):
             System.gfxinfo_reset(self._target, self.package)
         if 'surfaceflinger' in self.collect:
             System.surfaceflinger_reset(self._target, self.package)
+        if 'logcat' in self.collect:
+            System.logcat_reset(self._target)
         # Make sure ftrace and systrace are not both specified to be collected
         if 'ftrace' in self.collect and 'systrace' in self.collect:
             msg = 'ftrace and systrace cannot be used at the same time'
@@ -172,6 +174,9 @@ class Workload(object):
             dump_file = os.path.join(self.out_dir, 'dumpsys_surfaceflinger.txt')
             System.surfaceflinger_get(self._target, self.package, dump_file)
             self.surfaceflinger = SurfaceFlinger(dump_file)
+        if 'logcat' in self.collect:
+            dump_file = os.path.join(self.out_dir, 'logcat.txt')
+            System.logcat_get(self._target, dump_file)
         # Dump a platform description
         self._te.platform_dump(self.out_dir)
         # Restore automatic screen off

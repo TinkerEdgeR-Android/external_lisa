@@ -19,6 +19,7 @@ import logging
 import os
 import re
 import webbrowser
+import time
 
 from gfxinfo import GfxInfo
 from surfaceflinger import SurfaceFlinger
@@ -69,6 +70,10 @@ class Workload(object):
         for sc in Workload.__subclasses__():
             _log.debug('Checking workload [%s]...', sc.__name__)
 
+            if sc.package == 'optional':
+                cls._availables[sc.__name__.lower()] = sc
+                continue
+
             required_packages = [sc.package]
             if hasattr(sc, 'test_package'):
                 required_packages.append(sc.test_package)
@@ -105,9 +110,10 @@ class Workload(object):
             **kwargs):
         raise RuntimeError('Not implemented')
 
-    def tracingStart(self):
+    def tracingStart(self, screen_always_on=True):
         # Keep the screen on during any data collection
-        System.screen_always_on(self._target, enable=True)
+        if screen_always_on:
+            System.screen_always_on(self._target, enable=True)
         # Reset the dumpsys data for the package
         if 'gfxinfo' in self.collect:
             System.gfxinfo_reset(self._target, self.package)
@@ -131,8 +137,16 @@ class Workload(object):
             match = re.search(r'systrace_([0-9]+)', self.collect)
             self._trace_time = match.group(1) if match else None
             self._log.info('Systrace START')
+            self._target.execute('echo 0 > /d/tracing/tracing_on')
             self._systrace_output = System.systrace_start(
                 self._te, self.trace_file, self._trace_time, conf=self._te.conf)
+            if 'energy' in self.collect:
+                # Wait for systrace to start before cutting off USB
+                while True:
+                    if self._target.execute('cat /d/tracing/tracing_on')[0] == "0":
+                        time.sleep(0.1)
+                        continue
+                    break
         # Initialize energy meter results
         if 'energy' in self.collect and self._te.emeter:
             self._te.emeter.reset()
@@ -143,7 +157,7 @@ class Workload(object):
             self._log.info("Running post collect startup hook {}".format(hookfn.__name__))
             hookfn()
 
-    def tracingStop(self):
+    def tracingStop(self, screen_always_on=True):
         # Collect energy meter results
         if 'energy' in self.collect and self._te.emeter:
             self.nrg_report = self._te.emeter.report(self.out_dir)
@@ -180,7 +194,8 @@ class Workload(object):
         # Dump a platform description
         self._te.platform_dump(self.out_dir)
         # Restore automatic screen off
-        System.screen_always_on(self._target, enable=False)
+        if screen_always_on:
+            System.screen_always_on(self._target, enable=False)
 
     def traceShow(self):
         """

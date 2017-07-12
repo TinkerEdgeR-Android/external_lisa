@@ -54,6 +54,11 @@ class System(object):
                     ev_file = target.target.execute("ls /sys/kernel/debug/tracing/events/*/{}/enable".format(ev))
                     cmd = "echo 1 > {}".format(ev_file)
                     target.target.execute(cmd, as_root=True)
+            if 'event_triggers' in conf['systrace']:
+                for ev in conf['systrace']['event_triggers'].keys():
+                    tr_file = target.target.execute("ls /sys/kernel/debug/tracing/events/*/{}/trigger".format(ev))
+                    cmd = "echo {} > {}".format(conf['systrace']['event_triggers'][ev], tr_file)
+                    target.target.execute(cmd, as_root=True, check_exit_code=False)
 
         # Check which systrace binary is available under CATAPULT_HOME
         for systrace in ['systrace.py', 'run_systrace.py']:

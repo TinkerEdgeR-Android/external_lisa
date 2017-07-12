@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 import logging
-
+from time import sleep
 from conf import LisaLogging
 LisaLogging.setup()
 import json
@@ -93,7 +93,7 @@ my_conf = {
     },
 
     # Tools required by the experiments
-    "tools"   : [ 'taskset'],
+    "tools"   : [ 'taskset', 'busywait' ],
 
     "systrace": {
                   'extra_categories': ['power', 'irq'],
@@ -108,5 +108,9 @@ if args.serial:
 # Initialize a test environment using:
 te = TestEnv(my_conf, wipe=False)
 target = te.target
+
+busywait_cmd = '{}/busywait'.format(target.executables_directory)
+target.background(busywait_cmd, as_root=True)
+sleep(1)
 
 results = experiment()

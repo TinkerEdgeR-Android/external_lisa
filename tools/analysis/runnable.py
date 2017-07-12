@@ -159,7 +159,7 @@ else:
 systrace_obj = trappy.SysTrace(name="systrace", path=path_to_html, \
         scope="sched", events=["sched_switch", "sched_wakeup", "sched_waking"], normalize_time=args.normalize, **kwargs)
 
-systrace_obj.run_event_callbacks({ "sched_switch": switch_cb, "sched_wakeup": wake_cb, \
+systrace_obj.apply_callbacks({ "sched_switch": switch_cb, "sched_wakeup": wake_cb, \
                           "sched_waking": wake_cb })
 
 # Print the results: PID, latency, start, end, sort

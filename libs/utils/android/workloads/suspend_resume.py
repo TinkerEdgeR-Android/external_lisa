@@ -52,16 +52,13 @@ class SuspendResume(Workload):
 
     def run(self, out_dir, duration_s, collect=''):
         """
-        Run single Gmaps workload.
+        Run single suspend workload.
 
         :param out_dir: Path to experiment directory where to store results.
         :type out_dir: str
 
-        :param location_search: Search string to be used in SuspendResume
-        :type location_search: str
-
-        :param swipe_count: Number of sets of (left, right, up, down) swipes to do
-        :type swipe_count: int
+        :param duration_s: Duration of test
+        :type duration_s: int
 
         :param collect: Specifies what to collect. Possible values:
             - 'energy'
@@ -83,8 +80,21 @@ class SuspendResume(Workload):
 
         # Set min brightness
         Screen.set_brightness(self._target, auto=False, percent=0)
+
+        # Set timeout to min value
+        Screen.set_timeout(self._target, seconds=0)
+
+        # Prevent screen from dozing
+        Screen.set_doze_always_on(self._target, on=False)
+
+        # Turn on airplane mode
+        System.set_airplane_mode(self._target, on=True)
+
         # Unlock device screen (assume no password required)
         Screen.unlock(self._target)
+
+        # Force the device to suspend
+        self._target.execute('dumpsys deviceidle force-idle deep')
 
         sleep(1)
         Screen.set_screen(self._target, on=False)
@@ -95,5 +105,11 @@ class SuspendResume(Workload):
         sleep(duration_s)
 
         self.tracingStop(screen_always_on=False)
+
+        # Resume normal function
+        self._target.execute('dumpsys deviceidle unforce')
+
+        Screen.set_defaults(self._target)
+        System.set_airplane_mode(self._target, on=False)
 
 # vim :set tabstop=4 shiftwidth=4 expandtab

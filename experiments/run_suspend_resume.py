@@ -46,7 +46,7 @@ def experiment():
     try:
         shutil.rmtree(outdir)
     except:
-        print "coulnd't remove " + outdir
+        print "couldn't remove " + outdir
         pass
     os.makedirs(outdir)
 

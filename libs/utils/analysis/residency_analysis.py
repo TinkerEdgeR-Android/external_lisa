@@ -135,6 +135,7 @@ class ResidencyAnalysis(AnalysisModule):
             dict_ret['total'] = total
             yield dict_ret
 
+    @memoized
     def _dfg_cpu_residencies(self, pivot, event_name='sched_switch'):
        # Build a list of pids
         df = self._dfg_trace_event('sched_switch')

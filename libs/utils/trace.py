@@ -551,6 +551,7 @@ class Trace(object):
         df.dropna(inplace=True, how='any')
         return df
 
+    @memoized
     def _dfg_cgroup_attach_task(self, controllers = ['schedtune', 'cpuset']):
         # Since fork doesn't result in attach events, generate fake attach events
         # The below mechanism doesn't work to propogate nested fork levels:
@@ -588,6 +589,7 @@ class Trace(object):
             self._log.info("Couldn't attach all forks cgroup with-attach events ({} dropped)".format(dropped))
         return fdf
 
+    @memoized
     def _dfg_sched_switch_cgroup(self, controllers = ['schedtune', 'cpuset']):
         def sched_switch_add_cgroup(sdf, cdf, controller, direction):
             cdf = cdf[cdf['controller'] == controller]

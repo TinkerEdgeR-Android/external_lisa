@@ -762,6 +762,9 @@ class Trace(object):
 
     # Sanitize cgroup information helper
     def _helper_sanitize_CgroupAttachTask(self, df, allowed_cgroups, controller_id_name):
+        # Drop rows that aren't in the root-id -> name map
+        df = df[df['dst_root'].isin(controller_id_name.keys())]
+
         def get_cgroup_name(path, valid_names):
             name = os.path.basename(path)
             name = 'root' if not name in valid_names else name

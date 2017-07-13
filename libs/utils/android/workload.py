@@ -98,7 +98,47 @@ class Workload(object):
             msg = 'Workload [{}] not available on target'.format(name)
             raise ValueError(msg)
 
-        return cls._availables[name.lower()](test_env)
+        ret_cls = cls._availables[name.lower()](test_env)
+
+        # Add generic support for cgroup tracing (detect if cgroup module exists)
+        if ('modules' in test_env.conf) and ('cgroups' in test_env.conf['modules']):
+                # Enable dumping support (which happens after systrace starts)
+                ret_cls._log.info('Enabling CGroup support for dumping schedtune/cpuset events')
+                ret_cls.add_hook('post_collect_start', ret_cls.post_collect_start_cgroup)
+                # Also update the extra ftrace points needed
+                if not 'systrace' in test_env.conf:
+                    test_env.conf['systrace'] = { 'extra_events': ['cgroup_attach_task', 'sched_process_fork'] }
+                else:
+                    if not 'extra_events' in test_env.conf:
+                        test_env.conf['systrace']['extra_events'] = ['cgroup_attach_task', 'sched_process_fork']
+                    else:
+                        test_env.conf['systrace']['extra_events'].append(['cgroup_attach_task', 'sched_process_fork'])
+
+        return ret_cls
+
+    def trace_cgroup(self, controller, cgroup):
+        cgroup = self._te.target.cgroups.controllers[controller].cgroup('/' + cgroup)
+        cgroup.trace_cgroup_tasks()
+
+    def post_collect_start_cgroup(self):
+        # Since systrace starts asynchronously, wait for trace to start
+        while True:
+            if self._te.target.execute('cat /d/tracing/tracing_on')[0] == "0":
+                time.sleep(0.1)
+                continue
+            break
+
+        self.trace_cgroup('schedtune', '')           # root
+        self.trace_cgroup('schedtune', 'top-app')
+        self.trace_cgroup('schedtune', 'foreground')
+        self.trace_cgroup('schedtune', 'background')
+        self.trace_cgroup('schedtune', 'rt')
+
+        self.trace_cgroup('cpuset', '')              # root
+        self.trace_cgroup('cpuset', 'top-app')
+        self.trace_cgroup('cpuset', 'foreground')
+        self.trace_cgroup('cpuset', 'background')
+        self.trace_cgroup('cpuset', 'system-background')
 
     def add_hook(self, hook, hook_fn):
         allowed = ['post_collect_start']

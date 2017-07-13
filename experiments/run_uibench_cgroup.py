@@ -42,31 +42,6 @@ parser.add_argument('--serial', dest='serial', action='store',
 
 args = parser.parse_args()
 
-def trace_cgroup(controller, cgroup):
-    cgroup = te.target.cgroups.controllers[controller].cgroup('/' + cgroup)
-    cgroup.trace_cgroup_tasks()
-
-def post_collect_start():
-    # Since systrace starts asynchronously, wait for trace to start
-    while True:
-        if te.target.execute('cat /d/tracing/tracing_on')[0] == "0":
-            time.sleep(0.1)
-            continue
-        break
-
-    trace_cgroup('schedtune', '')           # root
-    trace_cgroup('schedtune', 'top-app')
-    trace_cgroup('schedtune', 'foreground')
-    trace_cgroup('schedtune', 'background')
-    trace_cgroup('schedtune', 'rt')
-
-    trace_cgroup('cpuset', '')              # root
-    trace_cgroup('cpuset', 'top-app')
-    trace_cgroup('cpuset', 'foreground')
-    trace_cgroup('cpuset', 'background')
-    trace_cgroup('cpuset', 'system-background')
-
-
 def experiment():
     # Get workload
     wload = Workload.getInstance(te, 'UiBench')
@@ -78,8 +53,6 @@ def experiment():
         print "coulnd't remove " + outdir
         pass
     os.makedirs(outdir)
-
-    wload.add_hook('post_collect_start', post_collect_start)
 
     # Run UiBench
     wload.run(outdir, test_name=args.test_name, duration_s=args.duration_s, collect=args.collect)
@@ -112,7 +85,7 @@ my_conf = {
     "modules"     : [
         'cpufreq',      # enable CPUFreq support
         'cpuidle',      # enable cpuidle support
-        'cgroups'       # Enable for cgroup support
+        'cgroups'       # Enable for cgroup support, doing this also enables cgroup tracing
     ],
 
     "emeter" : {

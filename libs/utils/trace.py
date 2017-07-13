@@ -537,6 +537,10 @@ class Trace(object):
         cgroup_events = ['cgroup_attach_task', 'cgroup_attach_task_devlib']
         df = None
 
+        if set(cgroup_events).isdisjoint(set(self.available_events)):
+            self._log.error('atleast one of {} is needed for cgroup_attach_task event generation'.format(cgroup_events))
+            return None
+
         for cev in cgroup_events:
             if not cev in self.available_events:
                 continue
@@ -564,6 +568,9 @@ class Trace(object):
             ret_df = trappy.utils.merge_dfs(fdf, cdf, pivot='pid')
             return ret_df
 
+        if not 'sched_process_fork' in self.available_events:
+            self._log.error('sched_process_fork is mandatory to get proper cgroup_attach events')
+            return None
         fdf = self._dfg_trace_event('sched_process_fork')
 
         forks_len = len(fdf)
@@ -602,6 +609,9 @@ class Trace(object):
             ret_df.rename(columns = { 'cgroup': direction + '_' + controller }, inplace=True)
             return ret_df
 
+        if not 'sched_switch' in self.available_events:
+            self._log.error('sched_switch is mandatory to generate sched_switch_cgroup event')
+            return None
         sdf = self._dfg_trace_event('sched_switch')
         cdf = self._dfg_cgroup_attach_task()
 

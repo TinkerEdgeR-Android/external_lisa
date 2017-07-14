@@ -32,33 +32,35 @@ from android.workload import Workload
 # CAN BE TURNED OFF.
 # The dirty hack we have is we forcefully add 'energy' into the
 # collect parameters so that the USB is cut off (as a side effect, we
-# also measure energy while suspended). There's no way of knowing for
-# sure if device did enter suspend.
-class SuspendResume(Workload):
+# also measure energy while idle). There's no way of knowing for
+# sure if device did enter idle.
+class IdleResume(Workload):
     """
-    Android SuspendResume workload
+    Android IdleResume workload
     """
 
     # Package is optional for this test
     package = 'optional'
 
     def __init__(self, test_env):
-        super(SuspendResume, self).__init__(test_env)
-        self._log = logging.getLogger('SuspendResume')
+        super(IdleResume, self).__init__(test_env)
+        self._log = logging.getLogger('IdleResume')
         self._log.debug('Workload created')
 
-        # Set of output data reported by SuspendResume
+        # Set of output data reported by IdleResume
         self.db_file = None
 
     def run(self, out_dir, duration_s, collect=''):
         """
-        Run single suspend workload.
+        Run single idle/suspend workload.
 
         :param out_dir: Path to experiment directory where to store results.
         :type out_dir: str
 
         :param duration_s: Duration of test
         :type duration_s: int
+
+        :type force: str
 
         :param collect: Specifies what to collect. Possible values:
             - 'energy'
@@ -68,7 +70,7 @@ class SuspendResume(Workload):
         :type collect: list(str)
         """
 
-        # Suspend/resume should always disconnect USB so rely on
+        # Idle/resume should always disconnect USB so rely on
         # the Energy meter to disconnect USB (We only support USB disconnect
         # mode for energy measurement, like with Monsoon
         if 'energy' not in collect:
@@ -96,6 +98,9 @@ class SuspendResume(Workload):
         # Force the device to suspend
         self._target.execute('dumpsys deviceidle force-idle deep')
 
+        # Prevent the device from fully suspending by holding a partial wakelock
+        System.wakelock(self._target, take=True)
+
         sleep(1)
         Screen.set_screen(self._target, on=False)
         sleep(1)
@@ -108,6 +113,9 @@ class SuspendResume(Workload):
 
         # Resume normal function
         self._target.execute('dumpsys deviceidle unforce')
+
+        # Release wakelock
+        System.wakelock(self._target, take=False)
 
         Screen.set_defaults(self._target)
         System.set_airplane_mode(self._target, on=False)

@@ -16,12 +16,12 @@ import sqlite3
 import argparse
 import shutil
 
-# Description: This experiments tests suspend/resume by turning off
+# Description: This experiments tests idle/resume by turning off
 # the screen and cutting off USB
 # REQUIRES DEVICE TO BE CONNECTED THROUGH MONSOON SO THAT PASSTHROUGH
 # CAN BE TURNED OFF. By default energy will be measured in this test.
 
-parser = argparse.ArgumentParser(description='SuspendResume tests')
+parser = argparse.ArgumentParser(description='IdleResume tests')
 
 parser.add_argument('--out_prefix', dest='out_prefix', action='store', default='default',
                     help='prefix for out directory')
@@ -40,7 +40,7 @@ args = parser.parse_args()
 
 def experiment():
     # Get workload
-    wload = Workload.getInstance(te, 'SuspendResume')
+    wload = Workload.getInstance(te, 'IdleResume')
 
     outdir=te.res_dir + '_' + args.out_prefix
     try:
@@ -50,7 +50,7 @@ def experiment():
         pass
     os.makedirs(outdir)
 
-    # Run SuspendResume
+    # Run IdleResume
     wload.run(outdir, duration_s=args.duration_s, collect=args.collect)
 
     # Dump platform descriptor
@@ -75,7 +75,7 @@ my_conf = {
     # "device"       : "HT6880200489",
 
     # Folder where all the results will be collected
-    "results_dir" : "SuspendResume",
+    "results_dir" : "IdleResume",
 
     # Define devlib modules to load
     "modules"     : [

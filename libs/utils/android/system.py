@@ -369,6 +369,23 @@ class System(object):
                 target.execute('input keyevent KEYCODE_VOLUME_DOWN')
 
     @staticmethod
+    def wakelock(target, name='lisa', take=False):
+        """
+        Take or release wakelock
+
+        :param target: instance of devlib Android target
+        :type target: devlib.target.AndroidTarget
+
+        :param name: name of the wakelock
+        :type name: str
+
+        :param take: whether to take or release the wakelock
+        :type take: bool
+        """
+        path = '/sys/power/wake_lock' if take else '/sys/power/wake_unlock'
+        target.execute('echo {} > {}'.format(name, path))
+
+    @staticmethod
     def gfxinfo_reset(target, apk_name):
         """
         Reset gfxinfo frame statistics for a given app.

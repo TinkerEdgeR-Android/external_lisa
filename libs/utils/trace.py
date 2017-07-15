@@ -324,6 +324,7 @@ class Trace(object):
                 tasks = df[name_key].unique()
             self.getTasks(df, tasks, name_key=name_key, pid_key=pid_key)
             self._scanTasks(df, name_key=name_key, pid_key=pid_key)
+            self._scanTgids(df)
 
         if 'sched_switch' in self.available_events:
             load(tasks, 'sched_switch', 'next_comm', 'next_pid')
@@ -373,6 +374,15 @@ class Trace(object):
             self._log.debug('Overutilized time: %.6f [s] (%.3f%% of trace time)',
                            self.overutilized_time, self.overutilized_prc)
 
+    def _scanTgids(self, df):
+        if not '__tgid' in df.columns:
+            return
+        df = df[['__pid', '__tgid']]
+        df = df.drop_duplicates(keep='first').set_index('__pid')
+        df.rename(columns = { '__pid': 'pid', '__tgid': 'tgid' },
+                              inplace=True)
+        self._pid_tgid = df
+
     def _scanTasks(self, df, name_key='comm', pid_key='pid'):
         """
         Extract tasks names and PIDs from the input data frame. The data frame
@@ -420,6 +430,9 @@ class Trace(object):
             return list({task[0] for task in
                          self._tasks_by_pid.ix[pid].values})
         return [self._tasks_by_pid.ix[pid].values[0]]
+
+    def getTgidFromPid(self, pid):
+        return _pid_tgid.ix[pid].values[0]
 
     def getTasks(self, dataframe=None,
                  task_names=None, name_key='comm', pid_key='pid'):
@@ -619,6 +632,9 @@ class Trace(object):
             sdf = sched_switch_add_cgroup(sdf, cdf, c, 'next')
             sdf = sched_switch_add_cgroup(sdf, cdf, c, 'prev')
 
+        # Augment with TGID information
+        sdf = sdf.join(self._pid_tgid, on='next_pid').rename(columns = {'tgid': 'next_tgid'})
+        sdf = sdf.join(self._pid_tgid, on='prev_pid').rename(columns = {'tgid': 'prev_tgid'})
         return sdf
 
 ###############################################################################

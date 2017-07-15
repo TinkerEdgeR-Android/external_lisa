@@ -114,7 +114,7 @@ class ResidencyAnalysis(AnalysisModule):
         # Each element of the array represents a single entity (core) to calculate on
         # Each array entry is a hashtable, for ex: residency['pid'][0][123]
         # is the residency of PID 123 on core 0
-        self.residency = { 'pid': [], 'tgid': [], 'schedtune': [], 'cpuset': [] }
+        self.residency = { }
         super(ResidencyAnalysis, self).__init__(trace)
 
     def generate_residency_data(self, pivot_type, pivot_ids):
@@ -161,11 +161,9 @@ class ResidencyAnalysis(AnalysisModule):
         logging.info("TOTAL number of TGIDs: {}".format(self.npids_tgid))
 
         # Create empty hash tables, 1 per CPU for each each residency
+        self.residency[pivot] = []
         for cpunr in range(0, self.ncpus):
-            self.residency['pid'].append({})
-            self.residency['tgid'].append({})
-            self.residency['cpuset'].append({})
-            self.residency['schedtune'].append({})
+            self.residency[pivot].append({})
 
         # Calculate residencies
         if hasattr(self._trace.data_frame, event_name):

@@ -399,7 +399,7 @@ class Trace(object):
         :param pid_key: The name of the dataframe columns containing task PIDs
         :type pid_key: str
         """
-        df = df[[name_key, pid_key]]
+        df = df[[name_key, pid_key]].drop_duplicates()
         self._tasks_by_name = df.set_index(name_key)
         self._tasks_by_pid = df.set_index(pid_key)
 

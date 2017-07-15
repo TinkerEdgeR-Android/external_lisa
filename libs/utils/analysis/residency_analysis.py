@@ -193,7 +193,29 @@ class ResidencyAnalysis(AnalysisModule):
         logging.info("total real time range of events: {}".format(self._trace.time_range))
         return df
 
+    def _dfg_cpu_residencies_cgroup(self, controller):
+        return self._dfg_cpu_residencies(controller, 'sched_switch_cgroup')
 
+    def plot_cgroup(self, controller, idle=False):
+        """
+        controller: name of the controller
+        idle: Consider idle time?
+        """
+        df = self._dfg_cpu_residencies_cgroup(controller)
+        if not idle:
+            df = df[pd.isnull(df.index) != True]
+        # Bug in matplot lib causes plotting issues when residency is < 1
+        df = df.apply(lambda x: x*10)
+        plt.style.use('ggplot')
+        colors = plt.rcParams['axes.color_cycle']
+        fig, axes = plt.subplots(nrows=5, ncols=2, figsize=(12,30))
+
+        for ax, col in zip(axes.flat, df.columns):
+            ax.pie(df[col], labels=df.index, autopct='%.2f', colors=colors)
+            ax.set(ylabel='', title=col, aspect='equal')
+
+        axes[0, 0].legend(bbox_to_anchor=(0, 0.5))
+        plt.show()
 
 
 

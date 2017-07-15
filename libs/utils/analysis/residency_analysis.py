@@ -139,13 +139,13 @@ class ResidencyAnalysis(AnalysisModule):
     def _dfg_cpu_residencies(self, pivot, event_name='sched_switch'):
        # Build a list of pids
         df = self._dfg_trace_event('sched_switch')
-        df = df[['__pid']].drop_duplicates()
+        df = df[['__pid']].drop_duplicates(keep='first')
         for s in df.iterrows():
             self.pid_list.append(s[1]['__pid'])
 
         # Build the pid_tgid map (skip pids without tgid)
         df = self._dfg_trace_event('sched_switch')
-        df = df[['__pid', '__tgid']].drop_duplicates()
+        df = df[['__pid', '__tgid']].drop_duplicates(keep='first')
         df_with_tgids = df[df['__tgid'] != -1]
         for s in df_with_tgids.iterrows():
             self.pid_tgid[s[1]['__pid']] = s[1]['__tgid']

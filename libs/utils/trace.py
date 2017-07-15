@@ -592,7 +592,7 @@ class Trace(object):
         for idx, c in enumerate(controllers):
             fdf = fork_add_cgroup(fdf, cdf, c)
             if (idx != (len(controllers) - 1)):
-                fdf = pd.concat([fdf, forkdf]).sort(columns='__line')
+                fdf = pd.concat([fdf, forkdf]).sort_values(by='__line')
 
         fdf = fdf[['__line', 'child_pid', 'controller', 'cgroup']]
         fdf.rename(columns = { 'child_pid': 'pid' }, inplace=True)
@@ -602,7 +602,7 @@ class Trace(object):
 
         new_forks_len = len(fdf) / len(controllers)
 
-        fdf = pd.concat([fdf, cdf]).sort(columns='__line')
+        fdf = pd.concat([fdf, cdf]).sort_values(by='__line')
 
         if new_forks_len < forks_len:
             dropped = forks_len - new_forks_len

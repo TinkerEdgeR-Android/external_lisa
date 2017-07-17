@@ -49,9 +49,18 @@ class Residency(object):
 # Callback and state machinery                                 #
 ################################################################
 
+def process_pivot(pivot_list, pivot):
+    if not pivot_list:
+        return True
+    return pivot in pivot_list
+
 def pivot_process_cb(data, args):
 
     pivot = args[0]['pivot']
+    if args[0].has_key('pivot_list'):
+        pivot_list = args[0]['pivot_list']
+    else:
+        pivot_list = []
     res_analysis_obj = args[0]['res_analysis_obj']
 
     debugg = False if pivot == 'schedtune' else False
@@ -67,8 +76,8 @@ def pivot_process_cb(data, args):
         print "{}: {} {} -> {} {}".format(time, prev_pivot, data['prev_comm'], \
                                           next_pivot, data['next_comm'])
 
-    # prev pid processing (switch out)
-    if pivot_res.has_key(prev_pivot):
+    # prev pivot processing (switch out)
+    if pivot_res.has_key(prev_pivot) and process_pivot(pivot_list, prev_pivot):
         pr = pivot_res[prev_pivot]
         if pr.running == 1:
             pr.running = 0
@@ -82,10 +91,14 @@ def pivot_process_cb(data, args):
 
         else:
             log.info('switch out seen while no switch in {}'.format(prev_pivot))
-    else:
+    elif process_pivot(pivot_list, prev_pivot):
         log.info('switch out seen while no switch in {}'.format(prev_pivot))
 
-    # next_pivot processing for new pid (switch in)
+    # Filter the next pivot
+    if not process_pivot(pivot_list, next_pivot):
+        return
+
+    # next_pivot processing for new pivot switch in
     if not pivot_res.has_key(next_pivot):
         pr = Residency(next_pivot, time)
         pivot_res[next_pivot] = pr
@@ -136,7 +149,7 @@ class ResidencyAnalysis(AnalysisModule):
             yield dict_ret
 
     @memoized
-    def _dfg_cpu_residencies(self, pivot, event_name='sched_switch'):
+    def _dfg_cpu_residencies(self, pivot, pivot_list=[], event_name='sched_switch'):
        # Build a list of pids
         df = self._dfg_trace_event('sched_switch')
         df = df[['__pid']].drop_duplicates(keep='first')
@@ -171,7 +184,7 @@ class ResidencyAnalysis(AnalysisModule):
         else:
             df = self._dfg_trace_event(event_name)
 
-        kwargs = { 'pivot': pivot, 'res_analysis_obj': self }
+        kwargs = { 'pivot': pivot, 'res_analysis_obj': self, 'pivot_list': pivot_list }
         trappy.utils.apply_callback(df, pivot_process_cb, kwargs)
 
         # Build the pivot id list
@@ -193,8 +206,8 @@ class ResidencyAnalysis(AnalysisModule):
         logging.info("total real time range of events: {}".format(self._trace.time_range))
         return df
 
-    def _dfg_cpu_residencies_cgroup(self, controller):
-        return self._dfg_cpu_residencies(controller, 'sched_switch_cgroup')
+    def _dfg_cpu_residencies_cgroup(self, controller, cgroups=[]):
+        return self._dfg_cpu_residencies(controller, pivot_list=cgroups, event_name='sched_switch_cgroup')
 
     def plot_cgroup(self, controller, cgroup='all', idle=False):
         """

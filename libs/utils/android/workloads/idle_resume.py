@@ -26,17 +26,17 @@ from android import Screen, System
 from android.workload import Workload
 
 
-# Description: This experiments tests suspend/resume by turning off
-# the screen and cutting off USB
-# REQUIRES DEVICE TO BE CONNECTED THROUGH MONSOON SO THAT PASSTHROUGH
-# CAN BE TURNED OFF.
-# The dirty hack we have is we forcefully add 'energy' into the
-# collect parameters so that the USB is cut off (as a side effect, we
-# also measure energy while idle). There's no way of knowing for
-# sure if device did enter idle.
 class IdleResume(Workload):
     """
     Android IdleResume workload
+
+    This workload tests suspend/resume by turning off the screen and cutting off
+    USB. You can collect energy and traces with it.
+    IT REQUIRES DEVICE TO BE CONNECTED THROUGH MONSOON SO THAT PASSTHROUGH CAN
+    BE TURNED OFF.  The dirty hack we have is we forcefully add 'energy' into the
+    collect parameters so that the USB is cut off (as a side effect, we also
+    measure energy while idle). There's no way of knowing for sure if device did
+    enter idle.
     """
 
     # Package is optional for this test

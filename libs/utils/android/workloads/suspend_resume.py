@@ -25,18 +25,18 @@ from target_script import TargetScript
 from android import Screen, System
 from android.workload import Workload
 
-
-# Description: This experiments tests suspend/resume by turning off
-# the screen and cutting off USB
-# REQUIRES DEVICE TO BE CONNECTED THROUGH MONSOON SO THAT PASSTHROUGH
-# CAN BE TURNED OFF.
-# The dirty hack we have is we forcefully add 'energy' into the
-# collect parameters so that the USB is cut off (as a side effect, we
-# also measure energy while suspended). There's no way of knowing for
-# sure if device did enter suspend.
 class SuspendResume(Workload):
     """
     Android SuspendResume workload
+
+    This experiments tests suspend/resume by turning off
+    the screen and cutting off USB. You can collect energy and traces
+    with it. REQUIRES DEVICE TO BE CONNECTED THROUGH MONSOON SO THAT
+    PASSTHROUGH CAN BE TURNED OFF.
+    The dirty hack we have is we forcefully add 'energy' into the
+    collect parameters so that the USB is cut off (as a side effect, we
+    also measure energy while suspended). There's no way of knowing for
+    sure if device did enter suspend.
     """
 
     # Package is optional for this test

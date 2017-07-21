@@ -109,10 +109,10 @@ class Workload(object):
                 if not 'systrace' in test_env.conf:
                     test_env.conf['systrace'] = { 'extra_events': ['cgroup_attach_task', 'sched_process_fork'] }
                 else:
-                    if not 'extra_events' in test_env.conf:
+                    if not 'extra_events' in test_env.conf['systrace']:
                         test_env.conf['systrace']['extra_events'] = ['cgroup_attach_task', 'sched_process_fork']
                     else:
-                        test_env.conf['systrace']['extra_events'].append(['cgroup_attach_task', 'sched_process_fork'])
+                        test_env.conf['systrace']['extra_events'].extend(['cgroup_attach_task', 'sched_process_fork'])
 
         return ret_cls
 

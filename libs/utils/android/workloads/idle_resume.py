@@ -96,7 +96,7 @@ class IdleResume(Workload):
         Screen.unlock(self._target)
 
         # Force the device to suspend
-        self._target.execute('dumpsys deviceidle force-idle deep')
+        System.force_suspend_start(self._target)
 
         # Prevent the device from fully suspending by holding a partial wakelock
         System.wakelock(self._target, take=True)
@@ -112,7 +112,7 @@ class IdleResume(Workload):
         self.tracingStop(screen_always_on=False)
 
         # Resume normal function
-        self._target.execute('dumpsys deviceidle unforce')
+        System.force_suspend_stop(self._target)
 
         # Release wakelock
         System.wakelock(self._target, take=False)

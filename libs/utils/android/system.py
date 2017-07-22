@@ -211,6 +211,29 @@ class System(object):
             target.execute('pm clear {}'.format(apk_name))
 
     @staticmethod
+    def force_suspend_start(target):
+        """
+        Force the device to go into suspend. If a wakelock is held, the device
+        will go into idle instead.
+
+        :param target: instance of devlib Android target
+        :type target: devlib.target.AndroidTarget
+
+        """
+        target.execute('dumpsys deviceidle force-idle deep')
+
+    @staticmethod
+    def force_suspend_stop(target):
+        """
+        Stop forcing the device to suspend/idle.
+
+        :param target: instance of devlib Android target
+        :type target: devlib.target.AndroidTarget
+
+        """
+        target.execute('dumpsys deviceidle unforce')
+
+    @staticmethod
     def tap(target, x, y, absolute=False):
         """
         Tap a given point on the screen.

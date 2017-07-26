@@ -18,6 +18,8 @@
 import re
 import os
 import logging
+import sqlite3
+import pandas as pd
 
 from subprocess import Popen, PIPE
 from time import sleep
@@ -206,6 +208,7 @@ class Jankbench(Workload):
         # Get results
         self.db_file = os.path.join(out_dir, JANKBENCH_DB_NAME)
         self._target.pull(db_adb, self.db_file)
+        self.results = self.get_results(out_dir)
 
         # Stop the benchmark app
         System.force_stop(self._target, self.package, clear=True)
@@ -222,5 +225,21 @@ class Jankbench(Workload):
 
         # Set brightness back to auto
         Screen.set_brightness(self._target, auto=True)
+
+    @staticmethod
+    def get_results(out_dir):
+        """
+        Extract data from results db and return as a pandas dataframe
+
+        :param out_dir: Output directory for a run of the Jankbench workload
+        :type out_dir: str
+        """
+        path = os.path.join(out_dir, JANKBENCH_DB_NAME)
+        columns = ['_id', 'name', 'run_id', 'iteration', 'total_duration', 'jank_frame']
+        data = []
+        conn = sqlite3.connect(path)
+        for row in conn.execute('SELECT {} FROM ui_results'.format(','.join(columns))):
+            data.append(row)
+        return pd.DataFrame(data, columns=columns)
 
 # vim :set tabstop=4 shiftwidth=4 expandtab

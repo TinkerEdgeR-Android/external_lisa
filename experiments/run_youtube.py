@@ -75,7 +75,7 @@ my_conf = {
     "modules"     : [
         'cpufreq',      # enable CPUFreq support
         'cpuidle',      # enable cpuidle support
-        # 'cgroups'     # Enable for cgroup support
+        'cgroups'     # Enable for cgroup support
     ],
 
     "emeter" : {

@@ -136,6 +136,9 @@ class SystemUi(Workload):
 
         command = "nohup am instrument -e iterations {} -e class {}{} -w {}".format(
             iterations, self.test_package, activity, self.test_package)
+
+	print "command: {}".format(command)
+
         self._target.background(command)
 
         logcat = Popen(logcat_cmd, shell=True, stdout=PIPE)

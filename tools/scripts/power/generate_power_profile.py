@@ -10,6 +10,10 @@ class PowerProfile:
         self.xml = etree.Element('device', name='Android')
 
     default_comments = {
+        'none' : 'Nothing',
+
+        'battery.capacity' : 'This is the battery capacity in mAh',
+
         'cpu.idle' : 'Power consumption when CPU is suspended',
         'cpu.awake' : 'Additional power consumption when CPU is in a kernel'
                 ' idle loop',
@@ -18,6 +22,33 @@ class PowerProfile:
                 ' minimum brightness',
         'screen.full' : 'Additional power used when screen is at maximum'
                 ' brightness, compared to screen at minimum brightness',
+
+        'bluetooth.controller.idle' : 'Average current draw (mA) of the'
+                ' Bluetooth controller when idle.',
+        'bluetooth.controller.rx' : 'Average current draw (mA) of the Bluetooth'
+                ' controller when receiving.',
+        'bluetooth.controller.tx' : 'Average current draw (mA) of the Bluetooth'
+                ' controller when transmitting.',
+        'bluetooth.controller.voltage' : 'Average operating voltage (mV) of the'
+                ' Bluetooth controller.',
+
+        'modem.controller.idle' : 'Average current draw (mA) of the modem'
+                ' controller when idle.',
+        'modem.controller.rx' : 'Average current draw (mA) of the modem'
+                ' controller when receiving.',
+        'modem.controller.tx' : 'Average current draw (mA) of the modem'
+                ' controller when transmitting.',
+        'modem.controller.voltage' : 'Average operating voltage (mV) of the'
+                ' modem controller.',
+
+        'wifi.controller.idle' : 'Average current draw (mA) of the Wi-Fi'
+                ' controller when idle.',
+        'wifi.controller.rx' : 'Average current draw (mA) of the Wi-Fi'
+                ' controller when receiving.',
+        'wifi.controller.tx' : 'Average current draw (mA) of the Wi-Fi'
+                ' controller when transmitting.',
+        'wifi.controller.voltage' : 'Average operating voltage (mV) of the'
+                ' Wi-Fi controller.',
     }
 
     def _add_comment(self, item, name, comment):
@@ -48,9 +79,12 @@ class PowerProfile:
 class PowerProfileGenerator:
 
     @staticmethod
-    def get(emeter):
+    def get(emeter, datasheet):
         power_profile = PowerProfile()
+
         PowerProfileGenerator._compute_measurements(power_profile, emeter)
+        PowerProfileGenerator._import_datasheet(power_profile, datasheet)
+
         return power_profile
 
     @staticmethod
@@ -122,9 +156,38 @@ class PowerProfileGenerator:
         PowerProfileGenerator._measure_screen_on(power_profile, emeter)
         PowerProfileGenerator._measure_screen_full(power_profile, emeter)
 
+    @staticmethod
+    def _import_datasheet(power_profile, datasheet):
+        for item in sorted(datasheet.keys()):
+            power_profile.add_item(item, datasheet[item])
+
 my_emeter = {
     'power_column'      : 'output_power',
     'sample_rate_hz'    : 500,
 }
 
-print PowerProfileGenerator.get(my_emeter)
+my_datasheet = {
+
+# Add datasheet values in the following format:
+#
+#    'none'  : 0,
+#
+#    'battery.capacity'  : 0,
+#
+#    'bluetooth.controller.idle'     : 0,
+#    'bluetooth.controller.rx'       : 0,
+#    'bluetooth.controller.tx'       : 0,
+#    'bluetooth.controller.voltage'  : 0,
+#
+#    'modem.controller.idle'     : 0,
+#    'modem.controller.rx'       : 0,
+#    'modem.controller.tx'       : 0,
+#    'modem.controller.voltage'  : 0,
+#
+#    'wifi.controller.idle'      : 0,
+#    'wifi.controller.rx'        : 0,
+#    'wifi.controller.tx'        : 0,
+#    'wifi.controller.voltage'   : 0,
+}
+
+print PowerProfileGenerator.get(my_emeter, my_datasheet)

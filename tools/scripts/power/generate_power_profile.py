@@ -4,6 +4,8 @@ import os
 from lxml import etree
 
 from power_average import PowerAverage
+from cpu_frequency_power_average import CpuFrequencyPowerAverage
+
 
 class PowerProfile:
     def __init__(self):
@@ -17,6 +19,7 @@ class PowerProfile:
         'cpu.idle' : 'Power consumption when CPU is suspended',
         'cpu.awake' : 'Additional power consumption when CPU is in a kernel'
                 ' idle loop',
+        'cpu.clusters.cores' : 'Number of cores each CPU cluster contains',
 
         'screen.on' : 'Additional power used when screen is turned on at'
                 ' minimum brightness',
@@ -73,6 +76,18 @@ class PowerProfile:
             return None
         return float(items[0].text)
 
+    def add_array(self, name, values, comment=None, subcomments=None):
+        array = etree.Element('array', name=name)
+        for i, value in enumerate(values):
+            entry = etree.Element('value')
+            entry.text = str(value)
+            if subcomments:
+                array.append(etree.Comment(subcomments[i]))
+            array.append(entry)
+
+        self._add_comment(self.xml, name, comment)
+        self.xml.append(array)
+
     def __str__(self):
         return etree.tostring(self.xml, pretty_print=True)
 
@@ -89,7 +104,7 @@ class PowerProfileGenerator:
 
     @staticmethod
     def _run_experiment(filename, duration, out_prefix, args=''):
-        os.system('python {} --collect energy --duration {} --out_prefix {} {} '.format(
+        os.system('python {} --duration {} --out_prefix {} {} '.format(
                 os.path.join(os.environ['LISA_HOME'], 'experiments', filename),
                 duration, out_prefix, args))
 
@@ -107,7 +122,7 @@ class PowerProfileGenerator:
     def _measure_cpu_idle(power_profile, emeter):
         duration = 120
         PowerProfileGenerator._run_experiment('run_suspend_resume.py', duration,
-                'cpu_idle')
+                'cpu_idle', args='--collect energy')
         power = PowerProfileGenerator._power_average(emeter,
                 'SuspendResume_cpu_idle', start=duration*0.25,
                 remove_outliers=True)
@@ -119,7 +134,7 @@ class PowerProfileGenerator:
     def _measure_cpu_awake(power_profile, emeter):
         duration = 120
         PowerProfileGenerator._run_experiment('run_idle_resume.py', duration,
-                'cpu_awake')
+                'cpu_awake', args='--collect energy')
         power = PowerProfileGenerator._power_average(emeter,
                 'IdleResume_cpu_awake', start=duration*0.25,
                 remove_outliers=True)
@@ -131,7 +146,7 @@ class PowerProfileGenerator:
     def _measure_screen_on(power_profile, emeter):
         duration = 120
         PowerProfileGenerator._run_experiment('run_display_image.py', duration,
-                'screen_on', '--brightness 0')
+                'screen_on', args='--collect energy --brightness 0')
         power = PowerProfileGenerator._power_average(emeter,
                 'DisplayImage_screen_on')
         cpu_idle_power = power_profile.get_item('cpu.idle')
@@ -142,7 +157,7 @@ class PowerProfileGenerator:
     def _measure_screen_full(power_profile, emeter):
         duration = 120
         PowerProfileGenerator._run_experiment('run_display_image.py', duration,
-                'screen_full', '--brightness 100')
+                'screen_full', args='--collect energy --brightness 100')
         power = PowerProfileGenerator._power_average(emeter,
                 'DisplayImage_screen_full')
         cpu_idle_power = power_profile.get_item('cpu.idle')
@@ -150,11 +165,58 @@ class PowerProfileGenerator:
         power_profile.add_item('screen.full', power - cpu_idle_power)
 
     @staticmethod
+    def _measure_clusters(power_profile, emeter):
+        duration = 120
+        # Run experiment
+        PowerProfileGenerator._run_experiment('run_cpu_frequency.py', duration,
+                'cpu_freq')
+
+        # Get clusters
+        clusters = CpuFrequencyPowerAverage.get(
+                os.path.join(os.environ['LISA_HOME'], 'results',
+                'CpuFrequency_cpu_freq'), os.path.join(os.environ['LISA_HOME'],
+                'results', 'CpuFrequency', 'platform.json'),
+                emeter['power_column'])
+
+        # Add cpu.clusters.cores
+        cpu_cluster_cores = [ len(cluster.get_cpus()) for cluster in clusters ]
+        power_profile.add_array('cpu.clusters.cores', cpu_cluster_cores)
+
+        # Add cpu.base.cluster
+        for i, cluster in enumerate(clusters):
+            comment = 'Additional power used when any cpu core is turned on'\
+                    ' in cluster{}. Does not include the power used by the cpu'\
+                    ' core(s).'.format(i)
+            power_profile.add_item('cpu.base.cluster{}'.format(i),
+                    cluster.get_cluster_cost()*1000, comment)
+
+        # Add cpu.speeds.cluster
+        for i, cluster in enumerate(clusters):
+            comment = 'Different CPU speeds as reported in /sys/devices/system/'\
+                    'cpu/cpu{}/cpufreq/scaling_available_frequencies'.format(
+                    cluster.get_cpus()[0])
+            freqs = cluster.get_cpu_freqs()
+            power_profile.add_array('cpu.speeds.cluster{}'.format(i),
+                    freqs, comment)
+
+        # Add cpu.active.cluster
+        for i, cluster in enumerate(clusters):
+            freqs = cluster.get_cpu_freqs()
+            cpu_active = [ cluster.get_cpu_cost(freq)*1000 for freq in freqs ]
+            comment = 'Additional power used by a CPU from cluster {} when'\
+                    ' running at different speeds. Currently this measurement'\
+                    ' also includes cluster cost.'.format(i)
+            subcomments = [ '{} MHz CPU speed'.format(freq * 0.001) for freq in freqs ]
+            power_profile.add_array('cpu.active.cluster{}'.format(i),
+                    cpu_active, comment, subcomments)
+
+    @staticmethod
     def _compute_measurements(power_profile, emeter):
         PowerProfileGenerator._measure_cpu_idle(power_profile, emeter)
         PowerProfileGenerator._measure_cpu_awake(power_profile, emeter)
         PowerProfileGenerator._measure_screen_on(power_profile, emeter)
         PowerProfileGenerator._measure_screen_full(power_profile, emeter)
+        PowerProfileGenerator._measure_clusters(power_profile, emeter)
 
     @staticmethod
     def _import_datasheet(power_profile, datasheet):

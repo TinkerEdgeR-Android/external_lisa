@@ -98,6 +98,18 @@ class Cluster:
 
             self.cpu_costs[freq] = average(cpu_costs)
 
+    def get_cpus(self):
+        return self.cpus
+
+    def get_cluster_cost(self):
+        return self.cluster_cost
+
+    def get_cpu_freqs(self):
+        return sorted(list(self.cpu_costs.keys()))
+
+    def get_cpu_cost(self, freq):
+        return self.cpu_costs[freq]
+
     def __str__(self):
         cpu_cost_str = "".join("\tfreq: %s \tcost: %s\n" % (f, self.cpu_costs[f])
                 for f in sorted(self.cpu_costs))

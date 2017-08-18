@@ -53,7 +53,8 @@ def experiment():
 
     # Run DisplayImage
     wload.run(outdir, duration_s=args.duration_s, brightness=args.brightness,
-            filepath=os.path.realpath('experiments/data/image.png'), collect=args.collect)
+            filepath=os.path.join(os.environ["LISA_HOME"],
+            'experiments/data/image.png'), collect=args.collect)
 
     # Dump platform descriptor
     te.platform_dump(te.res_dir)

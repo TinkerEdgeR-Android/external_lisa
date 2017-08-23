@@ -25,7 +25,7 @@ parser.add_argument('--collect', dest='collect', action='store', default='systra
                     help='what to collect (default systrace)')
 
 parser.add_argument('--test', dest='test_name', action='store',
-                    default='UiBenchJankTests#testGLTextureView',
+                    default='UiBenchJankTests#testResizeHWLayer',
                     help='which test to run')
 
 parser.add_argument('--duration', dest='duration_s', action='store',
@@ -35,13 +35,12 @@ parser.add_argument('--duration', dest='duration_s', action='store',
 parser.add_argument('--serial', dest='serial', action='store',
                     help='Serial number of device to test')
 
+parser.add_argument('--all', dest='run_all', action='store_true',
+                    help='Run all tests')
+
 args = parser.parse_args()
 
-def experiment():
-    # Get workload
-    wload = Workload.getInstance(te, 'UiBench')
-
-    outdir=te.res_dir + '_' + args.out_prefix
+def make_dir(outdir):
     try:
         shutil.rmtree(outdir)
     except:
@@ -49,8 +48,26 @@ def experiment():
         pass
     os.makedirs(outdir)
 
+def experiment():
+    def run_test(outdir, test_name):
+        te._log.info("Running test {}".format(test_name))
+        wload.run(outdir, test_name=test_name, duration_s=args.duration_s, collect=args.collect)
+
+    # Get workload
+    wload = Workload.getInstance(te, 'UiBench')
+
+    outdir=te.res_dir + '_' + args.out_prefix
+    make_dir(outdir)
+
     # Run UiBench
-    wload.run(outdir, test_name=args.test_name, duration_s=args.duration_s, collect=args.collect)
+    if args.run_all:
+        te._log.info("Running all tests: {}".format(wload.test_list))
+        for test in wload.get_test_list():
+            test_outdir = os.path.join(outdir, test)
+            make_dir(test_outdir)
+            run_test(test_outdir, test)
+    else:
+        run_test(outdir, args.test_name)
 
     # Dump platform descriptor
     te.platform_dump(te.res_dir)

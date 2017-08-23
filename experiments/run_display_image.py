@@ -26,6 +26,11 @@ parser.add_argument('--collect', dest='collect', action='store', default='energy
                     'display-energy which suspends the cpu to help prevent extra '
                     'energy consumption by the cpu.')
 
+parser.add_argument('--image', dest='image', action='store', default='image.png',
+                    type=str,
+                    help='name of image located in LISA_HOME/experiments/data'\
+                    ' (default image.png)')
+
 parser.add_argument('--brightness', dest='brightness', action='store', default=100,
                     type=int,
                     help='Brightness of screen (default 100)')
@@ -54,7 +59,7 @@ def experiment():
     # Run DisplayImage
     wload.run(outdir, duration_s=args.duration_s, brightness=args.brightness,
             filepath=os.path.join(os.environ["LISA_HOME"],
-            'experiments/data/image.png'), collect=args.collect)
+            'experiments/data', args.image), collect=args.collect)
 
     # Dump platform descriptor
     te.platform_dump(te.res_dir)

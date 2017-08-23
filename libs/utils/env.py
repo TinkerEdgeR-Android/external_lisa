@@ -571,6 +571,8 @@ class TestEnv(ShareState):
                 raise RuntimeError('Failed to initialized [{}] module, '
                         'update your kernel or test configurations'.format(module))
 
+        if ('skip_nrg_model' in self.conf) and self.conf['skip_nrg_model']:
+            return
         if not self.nrg_model:
             try:
                 self._log.info('Attempting to read energy model from target')

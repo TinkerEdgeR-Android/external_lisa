@@ -36,27 +36,28 @@ class SystemUi(Workload):
     # Instrumentation required to run tests
     test_package = 'android.platform.systemui.tests.jank'
 
-    testOpenAllAppsContainer = "LauncherJankTests#testOpenAllAppsContainer"
-    testAllAppsContainerSwipe = "LauncherJankTests#testAllAppsContainerSwipe"
-    testHomeScreenSwipe = "LauncherJankTests#testHomeScreenSwipe"
-    testWidgetsContainerFling = "LauncherJankTests#testWidgetsContainerFling"
-    testSettingsFling = "SettingsJankTests#testSettingsFling"
-    testRecentAppsFling = "SystemUiJankTests#testRecentAppsFling"
-    testRecentAppsDismiss = "SystemUiJankTests#testRecentAppsDismiss"
-    testNotificationListPull = "SystemUiJankTests#testNotificationListPull"
-    testNotificationListPull_manyNotifications = "SystemUiJankTests#testNotificationListPull_manyNotifications"
-    testQuickSettingsPull = "SystemUiJankTests#testQuickSettingsPull"
-    testUnlock = "SystemUiJankTests#testUnlock"
-    testExpandGroup = "SystemUiJankTests#testExpandGroup"
-    testClearAll = "SystemUiJankTests#testClearAll"
-    testChangeBrightness = "SystemUiJankTests#testChangeBrightness"
-    testNotificationAppear = "SystemUiJankTests#testNotificationAppear"
-    testCameraFromLockscreen = "SystemUiJankTests#testCameraFromLockscreen"
-    testAmbientWakeUp = "SystemUiJankTests#testAmbientWakeUp"
-    testGoToFullShade = "SystemUiJankTests#testGoToFullShade"
-    testInlineReply = "SystemUiJankTests#testInlineReply"
-    testPinAppearance = "SystemUiJankTests#testPinAppearance"
-    testLaunchSettings = "SystemUiJankTests#testLaunchSettings"
+    test_list = \
+    ["LauncherJankTests#testOpenAllAppsContainer",
+    "LauncherJankTests#testAllAppsContainerSwipe",
+    "LauncherJankTests#testHomeScreenSwipe",
+    "LauncherJankTests#testWidgetsContainerFling",
+    "SettingsJankTests#testSettingsFling",
+    "SystemUiJankTests#testRecentAppsFling",
+    "SystemUiJankTests#testRecentAppsDismiss",
+    "SystemUiJankTests#testNotificationListPull",
+    "SystemUiJankTests#testNotificationListPull_manyNotifications",
+    "SystemUiJankTests#testQuickSettingsPull",
+    "SystemUiJankTests#testUnlock",
+    "SystemUiJankTests#testExpandGroup",
+    "SystemUiJankTests#testClearAll",
+    "SystemUiJankTests#testChangeBrightness",
+    "SystemUiJankTests#testNotificationAppear",
+    "SystemUiJankTests#testCameraFromLockscreen",
+    "SystemUiJankTests#testAmbientWakeUp",
+    "SystemUiJankTests#testGoToFullShade",
+    "SystemUiJankTests#testInlineReply",
+    "SystemUiJankTests#testPinAppearance",
+    "SystemUiJankTests#testLaunchSettings"]
 
     def __init__(self, test_env):
         super(SystemUi, self).__init__(test_env)
@@ -65,6 +66,9 @@ class SystemUi(Workload):
 
         # Set of output data reported by SystemUi
         self.db_file = None
+
+    def get_test_list(self):
+        return SystemUi.test_list
 
     def run(self, out_dir, test_name, iterations, collect=''):
         """

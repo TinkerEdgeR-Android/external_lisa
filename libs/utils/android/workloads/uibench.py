@@ -36,31 +36,32 @@ class UiBench(Workload):
     test_package = 'com.android.uibench.janktests'
 
     # Supported tests list
-    test_ClippedListView = 'UiBenchJankTests#testClippedListView'
-    test_DialogListFling = 'UiBenchJankTests#testDialogListFling'
-    test_FadingEdgeListViewFling = 'UiBenchJankTests#testFadingEdgeListViewFling'
-    test_FullscreenOverdraw = 'UiBenchJankTests#testFullscreenOverdraw'
-    test_GLTextureView = 'UiBenchJankTests#testGLTextureView'
-    test_InflatingListViewFling = 'UiBenchJankTests#testInflatingListViewFling'
-    test_Invalidate = 'UiBenchJankTests#testInvalidate'
-    test_InvalidateTree = 'UiBenchJankTests#testInvalidateTree'
-    test_OpenNavigationDrawer = 'UiBenchJankTests#testOpenNavigationDrawer'
-    test_OpenNotificationShade = 'UiBenchJankTests#testOpenNotificationShade'
-    test_ResizeHWLayer = 'UiBenchJankTests#testResizeHWLayer'
-    test_SaveLayerAnimation = 'UiBenchJankTests#testSaveLayerAnimation'
-    test_SlowBindRecyclerViewFling = 'UiBenchJankTests#testSlowBindRecyclerViewFling'
-    test_SlowNestedRecyclerViewFling = 'UiBenchJankTests#testSlowNestedRecyclerViewFling'
-    test_SlowNestedRecyclerViewInitialFling = 'UiBenchJankTests#testSlowNestedRecyclerViewInitialFling'
-    test_TrivialAnimation = 'UiBenchJankTests#testTrivialAnimation'
-    test_TrivialListViewFling = 'UiBenchJankTests#testTrivialListViewFling'
-    test_TrivialRecyclerListViewFling = 'UiBenchJankTests#testTrivialRecyclerListViewFling'
-    test_BitmapUploadJank = 'UiBenchRenderingJankTests#testBitmapUploadJank'
-    test_ShadowGridListFling = 'UiBenchRenderingJankTests#testShadowGridListFling'
-    test_EditTextTyping = 'UiBenchTextJankTests#testEditTextTyping'
-    test_LayoutCacheHighHitrateFling = 'UiBenchTextJankTests#testLayoutCacheHighHitrateFling'
-    test_LayoutCacheLowHitrateFling = 'UiBenchTextJankTests#testLayoutCacheLowHitrateFling'
-    test_ActivityTransitionsAnimation = 'UiBenchTransitionsJankTests#testActivityTransitionsAnimation'
-    test_WebViewFling = 'UiBenchWebView#testWebViewFling'
+    test_list = \
+    ['UiBenchJankTests#testClippedListView',
+    'UiBenchJankTests#testDialogListFling',
+    'UiBenchJankTests#testFadingEdgeListViewFling',
+    'UiBenchJankTests#testFullscreenOverdraw',
+    'UiBenchJankTests#testGLTextureView',
+    'UiBenchJankTests#testInflatingListViewFling',
+    'UiBenchJankTests#testInvalidate',
+    'UiBenchJankTests#testInvalidateTree',
+    'UiBenchJankTests#testOpenNavigationDrawer',
+    'UiBenchJankTests#testOpenNotificationShade',
+    'UiBenchJankTests#testResizeHWLayer',
+    'UiBenchJankTests#testSaveLayerAnimation',
+    'UiBenchJankTests#testSlowBindRecyclerViewFling',
+    'UiBenchJankTests#testSlowNestedRecyclerViewFling',
+    'UiBenchJankTests#testSlowNestedRecyclerViewInitialFling',
+    'UiBenchJankTests#testTrivialAnimation',
+    'UiBenchJankTests#testTrivialListViewFling',
+    'UiBenchJankTests#testTrivialRecyclerListViewFling',
+    'UiBenchRenderingJankTests#testBitmapUploadJank',
+    'UiBenchRenderingJankTests#testShadowGridListFling',
+    'UiBenchTextJankTests#testEditTextTyping',
+    'UiBenchTextJankTests#testLayoutCacheHighHitrateFling',
+    'UiBenchTextJankTests#testLayoutCacheLowHitrateFling',
+    'UiBenchTransitionsJankTests#testActivityTransitionsAnimation',
+    'UiBenchWebView#testWebViewFling']
 
     def __init__(self, test_env):
         super(UiBench, self).__init__(test_env)
@@ -69,6 +70,9 @@ class UiBench(Workload):
 
         # Set of output data reported by UiBench
         self.db_file = None
+
+    def get_test_list(self):
+	return UiBench.test_list
 
     def run(self, out_dir, test_name, duration_s, collect=''):
         """

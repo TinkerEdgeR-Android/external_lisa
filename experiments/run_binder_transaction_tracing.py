@@ -36,6 +36,8 @@ conf = {
     },
     # Tools required by the experiments
     "tools"   : [ 'taskset'],
+
+    "skip_nrg_model" : True,
 }
 
 te = TestEnv(conf, wipe=False)

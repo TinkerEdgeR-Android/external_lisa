@@ -115,7 +115,9 @@ my_conf = {
 
     "systrace": {
 	    "extra_events" : [ 'sched_boost_task', 'sched_boost_cpu' ]
-    }
+    },
+
+    "skip_nrg_model" : True,
 }
 
 if args.serial:

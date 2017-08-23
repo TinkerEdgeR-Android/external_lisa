@@ -107,6 +107,8 @@ my_conf = {
 
     # Tools required by the experiments
     "tools"   : [ 'taskset'],
+
+    "skip_nrg_model" : True,
 }
 
 if args.serial:

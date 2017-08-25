@@ -102,6 +102,11 @@ class SystemUi(Workload):
         self.out_dir = out_dir
         self.collect = collect
 
+        # Filter out test overhead
+        filter_prop = System.get_boolean_property(self._target, 'debug.hwui.filter_test_overhead')
+        if not filter_prop:
+            System.set_property(self._target, 'debug.hwui.filter_test_overhead', 'true', restart=True)
+
         # Unlock device screen (assume no password required)
         Screen.unlock(self._target)
 
@@ -141,7 +146,7 @@ class SystemUi(Workload):
         command = "nohup am instrument -e iterations {} -e class {}{} -w {}".format(
             iterations, self.test_package, activity, self.test_package)
 
-	print "command: {}".format(command)
+        print "command: {}".format(command)
 
         self._target.background(command)
 

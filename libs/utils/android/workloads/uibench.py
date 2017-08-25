@@ -101,6 +101,12 @@ class UiBench(Workload):
         self.out_dir = out_dir
         self.collect = collect
 
+        # Filter out test overhead
+        filter_prop = System.get_boolean_property(self._target, 'debug.hwui.filter_test_overhead')
+        if not filter_prop:
+            System.set_property(
+                self._target, 'debug.hwui.filter_test_overhead', 'true', restart=True)
+
         # Unlock device screen (assume no password required)
         Screen.unlock(self._target)
 

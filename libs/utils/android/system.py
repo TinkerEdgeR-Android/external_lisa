@@ -20,6 +20,7 @@ import logging
 from devlib.utils.android import adb_command
 from devlib import TargetError
 import os
+import time
 import pexpect as pe
 
 GET_FRAMESTATS_CMD = 'shell dumpsys gfxinfo {} > {}'
@@ -139,6 +140,47 @@ class System(object):
         Set mobile data connectivity
         """
         System._set_svc(target, 'nfc', on)
+
+    @staticmethod
+    def get_property(target, prop):
+        """
+        Get the value of a system property
+        """
+        try:
+            value = target.execute('getprop {}'.format(prop), as_root=True)
+        except TargetError:
+            log = logging.getLogger('System')
+            log.warning('Failed to get prop {}'.format(prop))
+        return value.strip()
+
+    @staticmethod
+    def get_boolean_property(target, prop):
+        """
+        Get a boolean system property and return whether its value corresponds to True
+        """
+        return System.get_property(target, prop) in {'yes', 'true', 'on', '1', 'y'}
+
+    @staticmethod
+    def set_property(target, prop, value, restart=False):
+        """
+        Set a system property, then run adb shell stop && start if necessary
+        """
+        try:
+            target.execute('setprop {} {}'.format(prop, value), as_root=True)
+        except TargetError:
+            log = logging.getLogger('System')
+            log.warning('Failed to set {} to {}.'.format(prop, value))
+        if not restart:
+            return
+
+        target.execute('stop && start', as_root=True)
+        while True:
+            try:
+                System.wakeup(target)
+            except TargetError:
+                time.sleep(1)
+            else:
+                return
 
     @staticmethod
     def start_app(target, apk_name):

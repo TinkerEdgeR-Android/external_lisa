@@ -129,6 +129,14 @@ class PowerProfileGenerator:
                 'results', 'CpuFrequency', 'platform.json'),
                 self.emeter['power_column'])
 
+    def _remove_cpu_idle(self, power):
+        cpu_idle_power = self.power_profile.get_item('cpu.idle')
+        if cpu_idle_power is None:
+            self._measure_cpu_idle()
+            cpu_idle_power = self.power_profile.get_item('cpu.idle')
+
+        return power - cpu_idle_power
+
     # The power profile defines cpu.idle as a suspended cpu
     def _measure_cpu_idle(self):
         duration = 120
@@ -149,9 +157,9 @@ class PowerProfileGenerator:
         power = self._power_average('IdleResume_cpu_awake', start=duration*0.25,
                 remove_outliers=True)
 
-        cpu_idle_power = self.power_profile.get_item('cpu.idle')
+        power = self._remove_cpu_idle(power)
 
-        self.power_profile.add_item('cpu.awake', power - cpu_idle_power)
+        self.power_profile.add_item('cpu.awake', power)
 
     def _measure_screen_on(self):
         duration = 120
@@ -160,9 +168,9 @@ class PowerProfileGenerator:
                 args='--collect energy --brightness 0')
         power = self._power_average('DisplayImage_screen_on')
 
-        cpu_idle_power = self.power_profile.get_item('cpu.idle')
+        power = self._remove_cpu_idle(power)
 
-        self.power_profile.add_item('screen.on', power - cpu_idle_power)
+        self.power_profile.add_item('screen.on', power)
 
     def _measure_screen_full(self):
         duration = 120
@@ -171,9 +179,9 @@ class PowerProfileGenerator:
                 args='--collect energy --brightness 100')
         power = self._power_average('DisplayImage_screen_full')
 
-        cpu_idle_power = self.power_profile.get_item('cpu.idle')
+        power = self._remove_cpu_idle(power)
 
-        self.power_profile.add_item('screen.full', power - cpu_idle_power)
+        self.power_profile.add_item('screen.full', power)
 
     def _measure_cpu_cluster_cores(self):
         if self.clusters is None:

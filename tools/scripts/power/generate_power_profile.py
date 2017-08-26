@@ -97,6 +97,7 @@ class PowerProfileGenerator:
         self.emeter = emeter
         self.datasheet = datasheet
         self.power_profile = PowerProfile()
+        self.clusters = None
 
     def get(self):
         self._compute_measurements()
@@ -116,6 +117,17 @@ class PowerProfileGenerator:
         return PowerAverage.get(os.path.join(os.environ['LISA_HOME'], 'results',
                 results_dir, 'samples.csv'), column, sample_rate_hz,
                 start=start, remove_outliers=remove_outliers) * 1000
+
+    def _cpu_freq_power_average(self):
+        duration = 120
+
+        self._run_experiment(os.path.join('power', 'eas',
+                'run_cpu_frequency.py'), duration, 'cpu_freq')
+        self.clusters = CpuFrequencyPowerAverage.get(
+                os.path.join(os.environ['LISA_HOME'], 'results',
+                'CpuFrequency_cpu_freq'), os.path.join(os.environ['LISA_HOME'],
+                'results', 'CpuFrequency', 'platform.json'),
+                self.emeter['power_column'])
 
     # The power profile defines cpu.idle as a suspended cpu
     def _measure_cpu_idle(self):
@@ -163,25 +175,17 @@ class PowerProfileGenerator:
 
         self.power_profile.add_item('screen.full', power - cpu_idle_power)
 
-    def _measure_clusters(self):
-        duration = 120
+    def _measure_cpu_cluster_cores(self):
+        if self.clusters is None:
+            self._cpu_freq_power_average()
 
-        # Run experiment
-        self._run_experiment(os.path.join('power', 'eas',
-                'run_cpu_frequency.py'), duration, 'cpu_freq')
-
-        # Get clusters
-        self.clusters = CpuFrequencyPowerAverage.get(
-                os.path.join(os.environ['LISA_HOME'], 'results',
-                'CpuFrequency_cpu_freq'), os.path.join(os.environ['LISA_HOME'],
-                'results', 'CpuFrequency', 'platform.json'),
-                self.emeter['power_column'])
-
-        # Add cpu.clusters.cores
         cpu_cluster_cores = [ len(cluster.get_cpus()) for cluster in self.clusters ]
         self.power_profile.add_array('cpu.clusters.cores', cpu_cluster_cores)
 
-        # Add cpu.base.cluster
+    def _measure_cpu_base_cluster(self):
+        if self.clusters is None:
+            self._cpu_freq_power_average()
+
         for i, cluster in enumerate(self.clusters):
             comment = 'Additional power used when any cpu core is turned on'\
                     ' in cluster{}. Does not include the power used by the cpu'\
@@ -189,7 +193,10 @@ class PowerProfileGenerator:
             self.power_profile.add_item('cpu.base.cluster{}'.format(i),
                     cluster.get_cluster_cost()*1000, comment)
 
-        # Add cpu.speeds.cluster
+    def _measure_cpu_speeds_cluster(self):
+        if self.clusters is None:
+            self._cpu_freq_power_average()
+
         for i, cluster in enumerate(self.clusters):
             comment = 'Different CPU speeds as reported in /sys/devices/system/'\
                     'cpu/cpu{}/cpufreq/scaling_available_frequencies'.format(
@@ -198,7 +205,10 @@ class PowerProfileGenerator:
             self.power_profile.add_array('cpu.speeds.cluster{}'.format(i), freqs,
                     comment)
 
-        # Add cpu.active.cluster
+    def _measure_cpu_active_cluster(self):
+        if self.clusters is None:
+            self._cpu_freq_power_average()
+
         for i, cluster in enumerate(self.clusters):
             freqs = cluster.get_cpu_freqs()
             cpu_active = [ cluster.get_cpu_cost(freq)*1000 for freq in freqs ]
@@ -210,9 +220,12 @@ class PowerProfileGenerator:
                     cpu_active, comment, subcomments)
 
     def _compute_measurements(self):
-        self._measure_clusters()
         self._measure_cpu_idle()
         self._measure_cpu_awake()
+        self._measure_cpu_cluster_cores()
+        self._measure_cpu_base_cluster()
+        self._measure_cpu_speeds_cluster()
+        self._measure_cpu_active_cluster()
         self._measure_screen_on()
         self._measure_screen_full()
 

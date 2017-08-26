@@ -28,6 +28,9 @@ class PowerProfile:
         'screen.full' : 'Additional power used when screen is at maximum'
                 ' brightness, compared to screen at minimum brightness',
 
+        'camera.flashlight' : 'Average power used by the camera flash module'
+                ' when on.',
+
         'bluetooth.controller.idle' : 'Average current draw (mA) of the'
                 ' Bluetooth controller when idle.',
         'bluetooth.controller.rx' : 'Average current draw (mA) of the Bluetooth'
@@ -167,6 +170,19 @@ class PowerProfileGenerator:
 
         return power - energy / duration * 1000
 
+    def _remove_screen_full(self, power, duration, image):
+        out_prefix = image.split('.')[0]
+        results_dir = 'DisplayImage_{}'.format(out_prefix)
+
+        self._run_experiment('run_display_image.py', duration, out_prefix,
+                args='--collect=energy,time_in_state --brightness 100 --image={}'.format(image))
+        display_plus_cpu_power = self._power_average(results_dir)
+
+        display_power = self._remove_cpu_active(display_plus_cpu_power,
+                duration, results_dir)
+
+        return power - display_power
+
     # The power profile defines cpu.idle as a suspended cpu
     def _measure_cpu_idle(self):
         duration = 120
@@ -259,6 +275,21 @@ class PowerProfileGenerator:
             self.power_profile.add_array('cpu.active.cluster{}'.format(i),
                     cpu_active, comment, subcomments)
 
+    def _measure_camera_flashlight(self):
+        duration = 120
+        results_dir = 'CameraFlashlight_camera_flashlight'
+
+        self._run_experiment(os.path.join('power', 'profile',
+                'run_camera_flashlight.py'), duration, 'camera_flashlight',
+                args='--collect=energy,time_in_state')
+        power = self._power_average(results_dir)
+
+        power = self._remove_screen_full(power, duration,
+                'power_profile_camera_flashlight.png')
+        power = self._remove_cpu_active(power, duration, results_dir)
+
+        self.power_profile.add_item('camera.flashlight', power)
+
     def _compute_measurements(self):
         self._measure_cpu_idle()
         self._measure_cpu_awake()
@@ -268,6 +299,7 @@ class PowerProfileGenerator:
         self._measure_cpu_active_cluster()
         self._measure_screen_on()
         self._measure_screen_full()
+        self._measure_camera_flashlight()
 
     def _import_datasheet(self):
         for item in sorted(self.datasheet.keys()):

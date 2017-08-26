@@ -1,6 +1,8 @@
 #!/usr/bin/env python
 
+from __future__ import division
 import os
+import json
 from lxml import etree
 
 from power_average import PowerAverage
@@ -137,6 +139,34 @@ class PowerProfileGenerator:
 
         return power - cpu_idle_power
 
+    def _remove_cpu_active(self, power, duration, results_dir):
+        if self.clusters is None:
+            self._cpu_freq_power_average()
+
+        cfile = os.path.join(os.environ['LISA_HOME'], 'results', results_dir,
+                'time_in_state.json')
+        with open(cfile, 'r') as f:
+            time_in_state_json = json.load(f)
+
+        energy = 0.0
+        for cl in sorted(time_in_state_json['clusters']):
+            time_in_state_cpus = set(int(c) for c in time_in_state_json['clusters'][cl])
+
+            for cluster in self.clusters:
+                if time_in_state_cpus == set(cluster.get_cpus()):
+                    cpu_cnt = len(cluster.get_cpus())
+
+                    for freq, time_cs in time_in_state_json['time_delta'][cl].iteritems():
+                        time_s = time_cs * 0.01
+                        energy += time_s * cluster.get_cpu_cost(int(freq))
+
+                    # TODO remove cpu cluster cost and addtional base cost
+                    # This will require updating the cpu_frequency script
+                    # to calcualte the base cost and a kernel patch to
+                    # keep track of cluster time
+
+        return power - energy / duration * 1000
+
     # The power profile defines cpu.idle as a suspended cpu
     def _measure_cpu_idle(self):
         duration = 120
@@ -163,23 +193,25 @@ class PowerProfileGenerator:
 
     def _measure_screen_on(self):
         duration = 120
+        results_dir = 'DisplayImage_screen_on'
 
         self._run_experiment('run_display_image.py', duration, 'screen_on',
-                args='--collect energy --brightness 0')
-        power = self._power_average('DisplayImage_screen_on')
+                args='--collect=energy,time_in_state --brightness 0')
+        power = self._power_average(results_dir)
 
-        power = self._remove_cpu_idle(power)
+        power = self._remove_cpu_active(power, duration, results_dir)
 
         self.power_profile.add_item('screen.on', power)
 
     def _measure_screen_full(self):
         duration = 120
+        results_dir = 'DisplayImage_screen_full'
 
         self._run_experiment('run_display_image.py', duration, 'screen_full',
-                args='--collect energy --brightness 100')
-        power = self._power_average('DisplayImage_screen_full')
+                args='--collect=energy,time_in_state --brightness 100')
+        power = self._power_average(results_dir)
 
-        power = self._remove_cpu_idle(power)
+        power = self._remove_cpu_active(power, duration, results_dir)
 
         self.power_profile.add_item('screen.full', power)
 

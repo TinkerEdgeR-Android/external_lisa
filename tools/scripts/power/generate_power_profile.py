@@ -31,6 +31,8 @@ class PowerProfile:
         'camera.flashlight' : 'Average power used by the camera flash module'
                 ' when on.',
 
+        'gps.on' : 'Additional power used when GPS is acquiring a signal.',
+
         'bluetooth.controller.idle' : 'Average current draw (mA) of the'
                 ' Bluetooth controller when idle.',
         'bluetooth.controller.rx' : 'Average current draw (mA) of the Bluetooth'
@@ -290,6 +292,20 @@ class PowerProfileGenerator:
 
         self.power_profile.add_item('camera.flashlight', power)
 
+    def _measure_gps_on(self):
+        duration = 120
+        results_dir = 'GpsOn_gps_on'
+
+        self._run_experiment(os.path.join('power', 'profile', 'run_gps_on.py'),
+                duration, 'gps_on', args='--collect=energy,time_in_state')
+        power = self._power_average(results_dir)
+
+        power = self._remove_screen_full(power, duration,
+                'power_profile_gps_on.png')
+        power = self._remove_cpu_active(power, duration, results_dir)
+
+        self.power_profile.add_item('gps.on', power)
+
     def _compute_measurements(self):
         self._measure_cpu_idle()
         self._measure_cpu_awake()
@@ -300,6 +316,7 @@ class PowerProfileGenerator:
         self._measure_screen_on()
         self._measure_screen_full()
         self._measure_camera_flashlight()
+        self._measure_gps_on()
 
     def _import_datasheet(self):
         for item in sorted(self.datasheet.keys()):

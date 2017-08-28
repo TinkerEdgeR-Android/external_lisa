@@ -24,6 +24,7 @@ import time
 import pexpect as pe
 
 GET_FRAMESTATS_CMD = 'shell dumpsys gfxinfo {} > {}'
+ADB_INSTALL_CMD = 'install -g -r {}'
 
 class System(object):
     """
@@ -609,5 +610,20 @@ class System(object):
         if len(packages):
             return packages
         return None
+
+
+    @staticmethod
+    def install_apk(target, apk_path):
+        """
+        Get a dictionary of installed APKs and related information
+
+        :param target: instance of devlib Android target
+        :type target: devlib.target.AndroidTarget
+
+        :param apk_path: path to application
+        :type apk_path: str
+        """
+        adb_command(target.adb_name, ADB_INSTALL_CMD.format(apk_path))
+
 
 # vim :set tabstop=4 shiftwidth=4 expandtab

@@ -20,9 +20,11 @@ import os
 import re
 import webbrowser
 import time
+from collections import namedtuple
 
 from gfxinfo import GfxInfo
 from surfaceflinger import SurfaceFlinger
+from devlib.utils.android_build import Build
 
 from . import System
 
@@ -33,6 +35,8 @@ class Workload(object):
 
     _packages = None
     _availables = {}
+
+    WorkloadPackage = namedtuple("WorkloadPackage", "package_name apk_path src_path")
 
     def __init__(self, test_env):
         """
@@ -55,6 +59,33 @@ class Workload(object):
         return 'adb -s {} {}'.format(self._target.adb_name, cmd)
 
     @classmethod
+    def _packages_installed(cls, sc, allow_install):
+        # If workload does not have packages just return
+        if not hasattr(sc, 'packages'):
+            return True
+        # Require package to be installed unless it can be installed when allowed
+        if allow_install:
+            required_packages = [package.package_name for package in sc.packages if package.apk_path==None]
+        else:
+            required_packages = [package.package_name for package in sc.packages]
+        return all(p in cls._packages for p in required_packages)
+
+    @classmethod
+    def _build_packages(cls, sc, te):
+        bld = Build(te)
+        for p in sc.packages:
+            if p.src_path != None:
+                bld.build_module(p.src_path)
+        return True
+
+    @classmethod
+    def _install_packages(cls, sc, te):
+        for p in sc.packages:
+            System.install_apk(te.target,
+                '{}/{}'.format(te.ANDROID_PRODUCT_OUT, p.apk_path))
+        return True;
+
+    @classmethod
     def _check_availables(cls, test_env):
         """
         List the supported android workloads which are available on the target
@@ -70,22 +101,15 @@ class Workload(object):
         for sc in Workload.__subclasses__():
             _log.debug('Checking workload [%s]...', sc.__name__)
 
-            if sc.package == 'optional':
-                cls._availables[sc.__name__.lower()] = sc
-                continue
-
-            required_packages = [sc.package]
-            if hasattr(sc, 'test_package'):
-                required_packages.append(sc.test_package)
-
-            if all(p in cls._packages for p in required_packages):
+            # Check if all required packages are installed or can be installed
+            if cls._packages_installed(sc, True):
                 cls._availables[sc.__name__.lower()] = sc
 
         _log.info('Supported workloads available on target:')
         _log.info('  %s', ', '.join(cls._availables.keys()))
 
     @classmethod
-    def getInstance(cls, test_env, name):
+    def getInstance(cls, test_env, name, reinstall=False):
         """
         Get a reference to the specified Android workload
         """
@@ -98,7 +122,14 @@ class Workload(object):
             msg = 'Workload [{}] not available on target'.format(name)
             raise ValueError(msg)
 
-        ret_cls = cls._availables[name.lower()](test_env)
+        sc = cls._availables[name.lower()]
+        if (reinstall or not cls._packages_installed(sc, False)):
+            if (not cls._build_packages(sc, test_env) or
+                not cls._install_packages(sc, test_env)):
+                msg = 'Unable to install packages required for [{}] workload'.format(name)
+                raise RuntimeError(msg)
+
+        ret_cls = sc(test_env)
 
         # Add generic support for cgroup tracing (detect if cgroup module exists)
         if ('modules' in test_env.conf) and ('cgroups' in test_env.conf['modules']):

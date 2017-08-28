@@ -28,12 +28,21 @@ class UiBench(Workload):
     """
     Android UiBench workload
     """
+    # Packages required by this workload
+    packages = [
+        Workload.WorkloadPackage("com.android.test.uibench",
+            "data/app/UiBench/UiBench.apk",
+            "frameworks/base/tests/UiBench"),
+        Workload.WorkloadPackage("com.android.uibench.janktests",
+            "data/app/UiBenchJankTests/UiBenchJankTests.apk",
+            "platform_testing/tests/jank/uibench"),
+    ]
 
     # Package required by this workload
-    package = 'com.android.test.uibench'
+    package = packages[0].package_name
 
     # Instrumentation required to run tests
-    test_package = 'com.android.uibench.janktests'
+    test_package = packages[1].package_name
 
     # Supported tests list
     test_list = \

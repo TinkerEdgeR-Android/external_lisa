@@ -30,6 +30,8 @@ class PowerProfile:
 
         'camera.flashlight' : 'Average power used by the camera flash module'
                 ' when on.',
+        'camera.avg' : 'Average power use by the camera subsystem for a typical'
+                ' camera application.',
 
         'gps.on' : 'Additional power used when GPS is acquiring a signal.',
 
@@ -292,6 +294,21 @@ class PowerProfileGenerator:
 
         self.power_profile.add_item('camera.flashlight', power)
 
+    def _measure_camera_avg(self):
+        duration = 120
+        results_dir = 'CameraAvg_camera_avg'
+
+        self._run_experiment(os.path.join('power', 'profile',
+                'run_camera_avg.py'), duration, 'camera_avg',
+                args='--collect=energy,time_in_state')
+        power = self._power_average(results_dir)
+
+        power = self._remove_screen_full(power, duration,
+                'power_profile_camera_avg.png')
+        power = self._remove_cpu_active(power, duration, results_dir)
+
+        self.power_profile.add_item('camera.avg', power)
+
     def _measure_gps_on(self):
         duration = 120
         results_dir = 'GpsOn_gps_on'
@@ -316,6 +333,7 @@ class PowerProfileGenerator:
         self._measure_screen_on()
         self._measure_screen_full()
         self._measure_camera_flashlight()
+        self._measure_camera_avg()
         self._measure_gps_on()
 
     def _import_datasheet(self):

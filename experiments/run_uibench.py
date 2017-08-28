@@ -38,6 +38,9 @@ parser.add_argument('--serial', dest='serial', action='store',
 parser.add_argument('--all', dest='run_all', action='store_true',
                     help='Run all tests')
 
+parser.add_argument('--reinstall', dest='reinstall', action='store_true',
+                    help='Rebuild and reinstall test apks')
+
 args = parser.parse_args()
 
 def make_dir(outdir):
@@ -54,7 +57,7 @@ def experiment():
         wload.run(outdir, test_name=test_name, duration_s=args.duration_s, collect=args.collect)
 
     # Get workload
-    wload = Workload.getInstance(te, 'UiBench')
+    wload = Workload.getInstance(te, 'UiBench', args.reinstall)
 
     outdir=te.res_dir + '_' + args.out_prefix
     make_dir(outdir)

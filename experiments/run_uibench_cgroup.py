@@ -33,9 +33,9 @@ parser.add_argument('--test', dest='test_name', action='store',
                     default='UiBenchJankTests#testGLTextureView',
                     help='which test to run')
 
-parser.add_argument('--duration', dest='duration_s', action='store',
-                    default=30, type=int,
-                    help='Duration of test (default 30s)')
+parser.add_argument('--iterations', dest='iterations', action='store',
+                    default=10, type=int,
+                    help='Number of times to repeat the tests per run (default 10)')
 
 parser.add_argument('--serial', dest='serial', action='store',
                     help='Serial number of device to test')
@@ -55,7 +55,7 @@ def experiment():
     os.makedirs(outdir)
 
     # Run UiBench
-    wload.run(outdir, test_name=args.test_name, duration_s=args.duration_s, collect=args.collect)
+    wload.run(outdir, test_name=args.test_name, iterations=args.iterations, collect=args.collect)
 
     # Dump platform descriptor
     te.platform_dump(te.res_dir)

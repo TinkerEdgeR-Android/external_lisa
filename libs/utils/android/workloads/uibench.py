@@ -23,6 +23,8 @@ from subprocess import Popen, PIPE
 from time import sleep
 
 from android import Screen, System, Workload
+import pandas as pd
+
 
 class UiBench(Workload):
     """
@@ -83,7 +85,7 @@ class UiBench(Workload):
     def get_test_list(self):
 	return UiBench.test_list
 
-    def run(self, out_dir, test_name, duration_s, collect=''):
+    def run(self, out_dir, test_name, iterations=10, collect=''):
         """
         Run single UiBench workload.
 
@@ -93,16 +95,17 @@ class UiBench(Workload):
         :param test_name: Name of the test to run
         :type test_name: str
 
-        :param duration_s: Run benchmak for this required number of seconds
-        :type duration_s: int
+        :param iterations: Run benchmak for this required number of iterations
+        :type iterations: int
 
         :param collect: Specifies what to collect. Possible values:
-            - 'energy'
             - 'systrace'
             - 'ftrace'
-            - any combination of the above
         :type collect: list(str)
         """
+
+        if 'energy' in collect:
+            raise ValueError('UiBench workload does not support energy data collection')
 
         activity = '.' + test_name
 
@@ -128,16 +131,8 @@ class UiBench(Workload):
         # Set min brightness
         Screen.set_brightness(self._target, auto=False, percent=0)
 
-        # Start the main view of the app which must be running
-        # to reset the frame statistics.
-        System.monkey(self._target, self.package)
-
         # Force screen in PORTRAIT mode
         Screen.set_orientation(self._target, portrait=True)
-
-        # Reset frame statistics
-        System.gfxinfo_reset(self._target, self.package)
-        sleep(1)
 
         # Clear logcat
         os.system(self._adb('logcat -c'));
@@ -147,16 +142,19 @@ class UiBench(Workload):
         UIBENCH_BENCHMARK_START_RE = re.compile(start_logline)
         self._log.debug("START string [%s]", start_logline)
 
+        finish_logline = r'TestRunner: finished'
+        UIBENCH_BENCHMARK_FINISH_RE = re.compile(finish_logline)
+        self._log.debug("FINISH string [%s]", start_logline)
+
         # Parse logcat output lines
         logcat_cmd = self._adb(
                 'logcat TestRunner:* System.out:I *:S BENCH:*'\
                 .format(self._target.adb_name))
         self._log.info("%s", logcat_cmd)
 
-        # Run benchmark with a lot of iterations to avoid finishing before duration_s elapses
-        command = "nohup am instrument -e iterations 1000000 -e class {}{} -w {}".format(
-            self.test_package, activity, self.test_package)
-        self._target.background(command)
+        command = "am instrument -e iterations {} -e class {}{} -w {}".format(
+            iterations, self.test_package, activity, self.test_package)
+        test_proc = self._target.background(command)
 
         logcat = Popen(logcat_cmd, shell=True, stdout=PIPE)
         while True:
@@ -169,19 +167,19 @@ class UiBench(Workload):
             if match:
                 self.tracingStart()
                 self._log.debug("Benchmark started!")
+
+            match = UIBENCH_BENCHMARK_FINISH_RE.search(message)
+            if match:
+                self.tracingStop()
+                self._log.debug("Benchmark finished!")
+                test_proc.wait()
                 break
-
-        # Run the workload for the required time
-        self._log.info('Benchmark [%s] started, waiting %d [s]',
-                     activity, duration_s)
-        sleep(duration_s)
-
-        self._log.debug("Benchmark done!")
-        self.tracingStop()
 
         # Get frame stats
         self.db_file = os.path.join(out_dir, "framestats.txt")
-        System.gfxinfo_get(self._target, self.package, self.db_file)
+        with open(self.db_file, 'w') as f:
+            f.writelines(test_proc.stdout.readlines())
+        self.results = self.get_results(out_dir)
 
         # Close and clear application
         System.force_stop(self._target, self.package, clear=True)
@@ -194,4 +192,19 @@ class UiBench(Workload):
         System.set_airplane_mode(self._target, on=False)
         Screen.set_brightness(self._target, auto=True)
 
+    @staticmethod
+    def get_results(res_dir):
+        path = os.path.join(res_dir, 'framestats.txt')
+        with open(path, "r") as f:
+            lines = f.readlines()
+
+        values = []
+        columns = []
+        RESULTS_PARSE_RE = re.compile(r'gfx-([^=]+)=([0-9.]+)')
+        for line in lines:
+            matches = RESULTS_PARSE_RE.search(line)
+            if matches:
+                columns.append(matches.group(1))
+                values.append(float(matches.group(2)))
+        return pd.DataFrame([values], columns=columns)
 # vim :set tabstop=4 shiftwidth=4 expandtab

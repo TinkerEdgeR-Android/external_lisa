@@ -68,13 +68,13 @@ parser.add_argument("--iterations", "-i", type=int,
                     default=10000,
                     help="Number of iterations to run the transaction.")
 
-parser.add_argument("--cs_pairs", type=int, nargs='?',
+parser.add_argument("--cs_pairs", type=int, nargs='+',
                     default=[1, 2, 3, 4, 5],
                     help="Varying client-server pairs.")
 parser.add_argument("--payload", type=int, default=0,
                     help="Fixed payload in varying cs pairs.")
 
-parser.add_argument("--payloads", type=int, nargs='?',
+parser.add_argument("--payloads", type=int, nargs='+',
                     default=[0, 4096, 4096*2, 4096*4, 4096*8],
                     help="Varying payloads.")
 parser.add_argument("--cs_pair", type=int, default=1,

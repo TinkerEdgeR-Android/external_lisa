@@ -115,6 +115,9 @@ class TestEnv(ShareState):
         **ANDROID_PRODUCT_OUT**
             Path to Android output directory. Defaults to ``$ANDROID_PRODUCT_OUT`` from the
             environment.
+        **DEVICE_LISA_HOME**
+            Path to device-specific LISA directory. Set to ``$DEVICE_LISA_HOME`` from the
+            environment.
         **rtapp-calib**
             Calibration values for RT-App. If unspecified, LISA will
             calibrate RT-App on the target. A message will be logged with
@@ -221,6 +224,7 @@ class TestEnv(ShareState):
         self.TARGET_PRODUCT = os.environ.get('TARGET_PRODUCT', None)
         self.TARGET_BUILD_VARIANT = os.environ.get('TARGET_BUILD_VARIANT', None)
         self.ANDROID_PRODUCT_OUT = os.environ.get('ANDROID_PRODUCT_OUT', None)
+        self.DEVICE_LISA_HOME = os.environ.get('DEVICE_LISA_HOME', None)
         self.CATAPULT_HOME = os.environ.get('CATAPULT_HOME',
                 os.path.join(self.LISA_HOME, 'tools', 'catapult'))
 
@@ -424,6 +428,7 @@ class TestEnv(ShareState):
                 os.environ['TARGET_PRODUCT'] = self.TARGET_PRODUCT
                 os.environ['TARGET_BUILD_VARIANT'] = self.TARGET_BUILD_VARIANT
                 os.environ['ANDROID_PRODUCT_OUT'] = self.ANDROID_PRODUCT_OUT
+                os.environ['DEVICE_LISA_HOME'] = self.DEVICE_LISA_HOME
                 os.environ['CATAPULT_HOME'] = self.CATAPULT_HOME
             else:
                 self._log.info('Android SDK not found as ANDROID_HOME not defined, using PATH for platform tools')
@@ -440,6 +445,7 @@ class TestEnv(ShareState):
             self._log.info('   TARGET_PRODUCT: %s', self.TARGET_PRODUCT)
             self._log.info('   TARGET_BUILD_VARIANT: %s', self.TARGET_BUILD_VARIANT)
             self._log.info('   ANDROID_PRODUCT_OUT: %s', self.ANDROID_PRODUCT_OUT)
+            self._log.info('   DEVICE_LISA_HOME: %s', self.DEVICE_LISA_HOME)
             self._log.info('   CATAPULT_HOME: %s', self.CATAPULT_HOME)
 
             if not os.path.exists(self._adb):

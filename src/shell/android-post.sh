@@ -28,3 +28,4 @@ echo "Monsoon will run from: $(readlink -f $monsoon_path/monsoon.py)"
 export PYTHONPATH=$LISA_HOME/../devlib:$PYTHONPATH
 export PYTHONPATH=$LISA_HOME/../trappy:$PYTHONPATH
 export PYTHONPATH=$LISA_HOME/../bart:$PYTHONPATH
+export DEVICE_LISA_HOME=$lisadir

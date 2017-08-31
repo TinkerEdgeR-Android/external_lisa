@@ -625,5 +625,21 @@ class System(object):
         """
         adb_command(target.adb_name, ADB_INSTALL_CMD.format(apk_path))
 
+    @staticmethod
+    def contains_package(target, package):
+        """
+        Returns true if the package exists on the device
+
+        :param target: instance of devlib Android target
+        :type target: devlib.target.AndroidTarget
+
+        :param package: the name of the package
+        :type package: str
+        """
+        packages = System.list_packages(target)
+        if not packages:
+            return None
+
+        return package in packages
 
 # vim :set tabstop=4 shiftwidth=4 expandtab

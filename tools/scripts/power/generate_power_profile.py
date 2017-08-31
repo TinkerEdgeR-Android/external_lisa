@@ -168,8 +168,8 @@ class PowerProfileGenerator:
     def _measure_clusters(power_profile, emeter):
         duration = 120
         # Run experiment
-        PowerProfileGenerator._run_experiment('run_cpu_frequency.py', duration,
-                'cpu_freq')
+        PowerProfileGenerator._run_experiment(os.path.join('power', 'eas',
+                'run_cpu_frequency.py'), duration, 'cpu_freq')
 
         # Get clusters
         clusters = CpuFrequencyPowerAverage.get(

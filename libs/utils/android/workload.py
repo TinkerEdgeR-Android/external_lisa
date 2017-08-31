@@ -218,6 +218,10 @@ class Workload(object):
                         time.sleep(0.1)
                         continue
                     break
+        # Initializing frequency times
+        if 'time_in_state' in self.collect:
+            self._time_in_state_start = self._te.target.cpufreq.get_time_in_state(
+                    self._te.topology.get_level('cluster'))
         # Initialize energy meter results
         if 'energy' in self.collect and self._te.emeter:
             self._te.emeter.reset()
@@ -233,6 +237,12 @@ class Workload(object):
         if 'energy' in self.collect and self._te.emeter:
             self.nrg_report = self._te.emeter.report(self.out_dir)
             self._log.info('Energy meter STOPPED')
+        # Calculate the delta in frequency times
+        if 'time_in_state' in self.collect:
+            self._te.target.cpufreq.dump_time_in_state_delta(
+                    self._time_in_state_start,
+                    self._te.topology.get_level('cluster'),
+                    os.path.join(self.out_dir, 'time_in_state.json'))
         # Stop FTrace
         if 'ftrace' in self.collect:
             self._te.ftrace.stop()

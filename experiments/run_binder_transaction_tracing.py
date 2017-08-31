@@ -2,7 +2,10 @@
 
 from time import sleep
 import os
+import re
 import argparse
+import pandas as pd
+import matplotlib.pyplot as plt
 from android import System
 from env import TestEnv
 
@@ -43,7 +46,30 @@ conf = {
 te = TestEnv(conf, wipe=False)
 target = te.target
 
-def experiment(duration_s, cmd):
+def run_page_stats(duration, frequency):
+    procs = {}
+    for i in range(int(duration/frequency)):
+        ss = target.execute("cat /d/binder/stats")
+        proc_dump = re.split("\nproc ", ss)[1:]
+
+        for proc in proc_dump[1:]:
+            lines = proc.split("\n  ")
+            proc_id = lines[0]
+            page = re.search("pages: (\d+:\d+:\d+)", proc)
+            active, lru, free = map(int, page.group(1).split(":"))
+            if proc_id not in procs:
+                procs[proc_id] = {"alloc": [], "lru": []}
+            procs[proc_id]["alloc"].append(active + lru)
+            procs[proc_id]["lru"].append(lru)
+
+        sleep(frequency)
+    for proc in procs:
+        df = pd.DataFrame(data={"alloc": procs[proc]["alloc"],
+                             "lru": procs[proc]["lru"]})
+        df.plot(title="proc " + proc)
+        plt.show()
+
+def experiment(duration_s, cmd, frequency):
     """
     Starts systrace and run a command on target if specified. If
     no command is given, collect the trace for duration_s seconds.
@@ -53,13 +79,21 @@ def experiment(duration_s, cmd):
 
     :param cmd: command to execute on the target
     :type cmd: string
+
+    :param frequency: sampling frequency for page stats
+    :type frequency: float
     """
     systrace_output = System.systrace_start(
         te, os.path.join(te.res_dir, 'trace.html'), conf=conf)
-    if cmd:
+    systrace_output.expect("Starting tracing")
+
+    if frequency:
+        run_page_stats(duration_s, frequency)
+    elif cmd:
         target.execute(cmd)
     else:
         sleep(duration_s)
+
     systrace_output.sendline("")
     System.systrace_wait(te, systrace_output)
     te.platform_dump(te.res_dir)
@@ -72,7 +106,10 @@ parser.add_argument("--duration", "-d", type=int, default=0,
                     help="How long to collect the trace in seconds.")
 parser.add_argument("--command", "-c", type=str, default="",
                     help="Command to execute on the target.")
+parser.add_argument("--pagestats", "-p", nargs="?", type=float, default=None,
+                    const=0.1, help="Run binder page stats analysis."
+                    "Optional argument for sample interval in seconds.")
 
 if __name__ == "__main__":
     args = parser.parse_args()
-    experiment(args.duration, args.command)
+    experiment(args.duration, args.command, args.pagestats)

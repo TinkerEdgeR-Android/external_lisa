@@ -19,13 +19,17 @@ import logging
 
 from devlib.utils.android import adb_command
 from devlib import TargetError
+from devlib.utils.android_build import Build
+from time import sleep
 import os
 import re
 import time
+import json
 import pexpect as pe
 
 GET_FRAMESTATS_CMD = 'shell dumpsys gfxinfo {} > {}'
 ADB_INSTALL_CMD = 'install -g -r {}'
+BOARD_CONFIG_FILE = 'board.json'
 
 class System(object):
     """
@@ -675,5 +679,66 @@ class System(object):
         :type package: str
         """
         target.execute('pm reset-permissions {}'.format(package))
+
+    @staticmethod
+    def find_config_file(test_env):
+        # Try device-specific config file first
+        board_cfg_file = os.path.join(test_env.DEVICE_LISA_HOME, BOARD_CONFIG_FILE)
+
+        if not os.path.exists(board_cfg_file):
+            # Try local config file $LISA_HOME/libs/utils/platforms/$TARGET_PRODUCT.json
+            board_cfg_file = 'libs/utils/platforms/{}.json'.format(test_env.TARGET_PRODUCT)
+            board_cfg_file = os.path.join(test_env.LISA_HOME, board_cfg_file)
+            if not os.path.exists(board_cfg_file):
+                return None
+        return board_cfg_file
+
+    @staticmethod
+    def read_config_file(board_cfg_file):
+        with open(board_cfg_file, "r") as fh:
+            board_config = json.load(fh)
+        return board_config
+
+    @staticmethod
+    def reimage(test_env, kernel_path='', update_cfg=''):
+        """
+        Get a reference to the specified Android workload
+
+        :param test_env: target test environment
+        :type test_env: TestEnv
+
+        :param kernel_path: path to kernel sources, required if reimage option is used
+        :type kernel_path: str
+
+        :param update_cfg: update configuration name from board_cfg.json
+        :type update_cfg: str
+
+        """
+        # Find board config file from device-specific or local directory
+        board_cfg_file = System.find_config_file(test_env)
+        if board_cfg_file == None:
+            raise RuntimeError('Board config file is not found')
+
+        # Read build config file
+        board_config = System.read_config_file(board_cfg_file)
+        if board_config == None:
+            raise RuntimeError('Board config file {} is invalid'.format(board_cfg_file))
+
+        # Read update-config section and execute appropriate scripts
+        update_config = board_config['update-config'][update_cfg]
+        if update_config == None:
+            raise RuntimeError('Update config \'{}\' is not found'.format(update_cfg))
+
+        board_cfg_dir = os.path.dirname(os.path.realpath(board_cfg_file))
+        build_script = update_config['build-script']
+        flash_script = update_config['flash-script']
+        build_script = os.path.join(board_cfg_dir, build_script)
+        flash_script = os.path.join(board_cfg_dir, flash_script)
+
+        cmd_prefix = "LOCAL_KERNEL_HOME='{}' ".format(kernel_path)
+        bld = Build(test_env)
+        bld.exec_cmd(cmd_prefix + build_script)
+        bld.exec_cmd(cmd_prefix + flash_script)
+
 
 # vim :set tabstop=4 shiftwidth=4 expandtab

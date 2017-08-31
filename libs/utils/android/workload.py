@@ -112,6 +112,16 @@ class Workload(object):
     def getInstance(cls, test_env, name, reinstall=False):
         """
         Get a reference to the specified Android workload
+
+        :param test_env: target test environment
+        :type test_env: TestEnv
+
+        :param name: workload name
+        :type name: str
+
+        :param reinstall: flag to reinstall workload applications
+        :type reinstall: boolean
+
         """
 
         # Initialize list of available workloads
@@ -123,6 +133,7 @@ class Workload(object):
             raise ValueError(msg)
 
         sc = cls._availables[name.lower()]
+
         if (reinstall or not cls._packages_installed(sc, False)):
             if (not cls._build_packages(sc, test_env) or
                 not cls._install_packages(sc, test_env)):

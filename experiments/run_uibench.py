@@ -41,13 +41,21 @@ parser.add_argument('--all', dest='run_all', action='store_true',
 parser.add_argument('--reinstall', dest='reinstall', action='store_true',
                     help='Rebuild and reinstall test apks')
 
+parser.add_argument('--reimage', dest='reimage', action='store',
+                    default='',
+                    help='Flag to reimage target device (kernel-update kernel image | all-update complete android image)')
+
+parser.add_argument('--kernel_path', dest='kernel_path', action='store',
+                    default='',
+                    help='Path to kernel source directory. Required if reimage option is used')
+
 args = parser.parse_args()
 
 def make_dir(outdir):
     try:
         shutil.rmtree(outdir)
     except:
-        print "coulnd't remove " + outdir
+        print "couldn't remove " + outdir
         pass
     os.makedirs(outdir)
 
@@ -55,6 +63,9 @@ def experiment():
     def run_test(outdir, test_name):
         te._log.info("Running test {}".format(test_name))
         wload.run(outdir, test_name=test_name, iterations=args.iterations, collect=args.collect)
+
+    if args.reimage:
+        System.reimage(te, args.kernel_path, args.reimage)
 
     # Get workload
     wload = Workload.getInstance(te, 'UiBench', args.reinstall)

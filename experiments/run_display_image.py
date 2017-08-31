@@ -86,7 +86,9 @@ my_conf = {
     "results_dir" : "DisplayImage",
 
     # Define devlib modules to load
-    "modules"     : [ ],
+    "modules"     : [
+        'cpufreq',      # enable CPUFreq support
+    ],
 
     "emeter" : {
         'instrument': 'monsoon',

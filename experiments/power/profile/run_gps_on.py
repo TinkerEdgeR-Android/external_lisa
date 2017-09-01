@@ -1,5 +1,4 @@
 #!/usr/bin/env python
-
 import logging
 
 from conf import LisaLogging
@@ -16,7 +15,7 @@ import sqlite3
 import argparse
 import shutil
 
-parser = argparse.ArgumentParser(description='CameraFlashlight')
+parser = argparse.ArgumentParser(description='GpsOn')
 
 parser.add_argument('--out_prefix', dest='out_prefix', action='store', default='default',
                     help='prefix for out directory')
@@ -45,18 +44,12 @@ def experiment():
         pass
     os.makedirs(outdir)
 
-    package = 'com.example.android.powerprofile.cameraflashlight'
-    permissions = []
+    package = 'com.example.android.powerprofile.gpson'
+    permissions = ['android.permission.ACCESS_FINE_LOCATION']
 
-    # Set airplane mode
-    System.set_airplane_mode(target, on=True)
-
-    # Run AppStartup workload with the flashlight app
+    # Run AppStartup workload with the gps on app
     wload.run(outdir, package=package, permissions=permissions,
             duration_s=args.duration_s, collect=args.collect)
-
-    # Turn off airplane mode
-    System.set_airplane_mode(target, on=False)
 
     # Dump platform descriptor
     te.platform_dump(te.res_dir)
@@ -80,7 +73,7 @@ my_conf = {
     # "device"       : "HT6880200489",
 
     # Folder where all the results will be collected
-    "results_dir" : "CameraFlashlight",
+    "results_dir" : "GpsOn",
 
     # Define devlib modules to load
     "modules"     : [

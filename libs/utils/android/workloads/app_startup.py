@@ -40,7 +40,7 @@ class AppStartup(Workload):
         # Set of output data reported by AppStartup
         self.db_file = None
 
-    def run(self, out_dir, package, duration_s, collect=''):
+    def run(self, out_dir, package, permissions, duration_s, collect=''):
         """
         Run single AppStartup workload.
 
@@ -49,6 +49,9 @@ class AppStartup(Workload):
 
         :param package: Name of the apk package
         :type package: str
+
+        :param permissions: List of permissions the app requires
+        :type permissions: list of str
 
         :param duration_s: Run benchmak for this required number of seconds
         :type duration_s: int
@@ -75,6 +78,12 @@ class AppStartup(Workload):
 
         # Close and clear application
         System.force_stop(self._target, package, clear=True)
+        sleep(3)
+
+        # Grant permissions
+        for permission in permissions:
+            System.grant_permission(self._target, package, permission)
+        sleep(3)
 
         # Set min brightness
         Screen.set_brightness(self._target, auto=False, percent=100)
@@ -96,6 +105,9 @@ class AppStartup(Workload):
 
         # Stop tracing
         self.tracingStop()
+
+        # Reset permissions
+        System.reset_permissions(self._target, package)
 
         # Close and clear application
         System.force_stop(self._target, package, clear=True)

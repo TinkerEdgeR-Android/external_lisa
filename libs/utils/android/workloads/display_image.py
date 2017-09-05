@@ -60,10 +60,7 @@ class DisplayImage(Workload):
 
         :param collect: Specifies what to collect. Possible values:
             - 'energy'
-            - 'display-energy'
-                - Suspends the cpu while displaying the image. The power used
-                  by the display can then be computed as:
-                  display_power = (display_power + cpu_suspend_power) - cpu_suspend_power
+            - 'time_in_state'
             - 'systrace'
             - 'ftrace'
             - any combination of the above, except energy and display-energy
@@ -73,10 +70,7 @@ class DisplayImage(Workload):
 
         # Keep track of mandatory parameters
         self.out_dir = out_dir
-        # If display-energy requested, pass lisa energy instead so it knows
-        # to collect energy. We will force suspend the device before calling
-        # tracing start.
-        self.collect = collect.replace('display-energy', 'energy')
+        self.collect = collect
 
         # Set brightness
         Screen.set_brightness(self._target, auto=False, percent=brightness)
@@ -103,22 +97,12 @@ class DisplayImage(Workload):
         # Dimiss the navigation bar by tapping the center of the screen
         System.tap(self._target, 50, 50)
 
-        # If we are trying to collect display energy suspend the device to
-        # prevent as little extra power consumption as possible.
-        if 'display-energy' in collect:
-            System.force_suspend_start(self._target)
-            sleep(1)
-
         self.tracingStart(screen_always_on=False)
 
         self._log.info('Waiting for duration {}'.format(duration_s))
         sleep(duration_s)
 
         self.tracingStop(screen_always_on=False)
-
-        # If the device was suspended, resume normal function
-        if 'display-energy' in collect:
-            System.force_suspend_stop(self._target)
 
         # Close app and dismiss image
         System.force_stop(self._target, self.package, clear=True)

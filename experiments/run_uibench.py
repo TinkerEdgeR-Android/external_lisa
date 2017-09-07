@@ -70,7 +70,9 @@ def experiment():
             make_dir(test_outdir)
             run_test(test_outdir, test)
     else:
-        run_test(outdir, args.test_name)
+        test_outdir = os.path.join(outdir, args.test_name)
+        make_dir(test_outdir)
+        run_test(test_outdir, args.test_name)
 
     # Dump platform descriptor
     te.platform_dump(te.res_dir)

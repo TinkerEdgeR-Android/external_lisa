@@ -20,6 +20,7 @@ import logging
 from devlib.utils.android import adb_command
 from devlib import TargetError
 import os
+import re
 import time
 import pexpect as pe
 
@@ -165,6 +166,9 @@ class System(object):
     def set_property(target, prop, value, restart=False):
         """
         Set a system property, then run adb shell stop && start if necessary
+
+        When restart=True, this function clears logcat to avoid detecting old
+        "Boot is finished" messages.
         """
         try:
             target.execute('setprop {} {}'.format(prop, value), as_root=True)
@@ -174,13 +178,14 @@ class System(object):
         if not restart:
             return
 
+        target.execute('logcat -c', check_exit_code=False)
+        BOOT_FINISHED_RE = re.compile(r'Boot is finished')
+        logcat = target.background('logcat SurfaceFlinger:* *:S')
         target.execute('stop && start', as_root=True)
         while True:
-            try:
-                System.wakeup(target)
-            except TargetError:
-                time.sleep(1)
-            else:
+            message = logcat.stdout.readline(1024)
+            match = BOOT_FINISHED_RE.search(message)
+            if match:
                 return
 
     @staticmethod

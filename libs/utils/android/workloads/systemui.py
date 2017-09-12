@@ -31,10 +31,15 @@ class SystemUi(Workload):
     Android SystemUi jank test workload
     """
 
-    package = 'com.android.systemui'
+    # Packages required by this workload
+    packages = [
+        Workload.WorkloadPackage("android.platform.systemui.tests.jank",
+                                 "data/app/UbSystemUiJankTests/UbSystemUiJankTests.apk",
+                                 "platform_testing/tests/jank/UbSystemUiJankTests")
+    ]
 
     # Instrumentation required to run tests
-    test_package = 'android.platform.systemui.tests.jank'
+    test_package = packages[0].package_name
 
     test_list = \
     ["LauncherJankTests#testOpenAllAppsContainer",
@@ -109,9 +114,6 @@ class SystemUi(Workload):
 
         # Unlock device screen (assume no password required)
         Screen.unlock(self._target)
-
-        # Close and clear application
-        System.force_stop(self._target, self.package, clear=True)
 
         # Set airplane mode
         System.set_airplane_mode(self._target, on=True)

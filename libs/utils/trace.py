@@ -271,6 +271,7 @@ class Trace(object):
 
         # Sanitize cgroup info if any
         self._sanitize_CgroupAttachTask()
+        self._sanitize_SchedOverutilized()
 
         # Santization not possible if platform missing
         if not self.platform:
@@ -281,7 +282,6 @@ class Trace(object):
             self._sanitize_SchedBoostCpu()
             self._sanitize_SchedBoostTask()
             self._sanitize_SchedEnergyDiff()
-            self._sanitize_SchedOverutilized()
             self._sanitize_CpuFrequency()
 
         self.__loadTasksNames(tasks)

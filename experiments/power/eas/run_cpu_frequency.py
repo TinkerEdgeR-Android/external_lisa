@@ -56,10 +56,10 @@ CRITICAL_TASKS = [
     "/system/bin/sh", "adbd", "/init"
 ]
 
-def outfiles(on_cpus, freq):
-    cpu_str = ''.join('{}-'.format(c) for c in on_cpus)
-    samples = 'cpus{}freq{}-samples.csv'.format(cpu_str, freq)
-    energy = 'cpus{}freq{}-energy.json'.format(cpu_str, freq)
+def outfiles(cluster, cpus, freq):
+    prefix = 'cluster{}-cores{}freq{}_'.format(str(cluster), ''.join('{}-'.format(cpu) for cpu in cpus), freq)
+    samples = '{}samples.csv'.format(prefix)
+    energy = '{}energy.json'.format(prefix)
     return energy, samples
 
 def update_cpus(target, on_cpus, off_cpus):
@@ -68,6 +68,62 @@ def update_cpus(target, on_cpus, off_cpus):
 
     for cpu in off_cpus:
         target.hotplug.offline(cpu)
+
+def single_cluster(cpus, sandbox_cg, isolated_cg, dhrystone, outdir):
+    # For each cluster
+    for i, cluster in enumerate(clusters):
+
+        # For each frequency on the cluster
+        for freq in target.cpufreq.list_frequencies(cluster[0]):
+
+            # Keep track of offline and online cpus
+            off_cpus = cpus[:]
+            on_cpus = []
+
+            # For each cpu in the cluster
+            for cpu in cluster:
+                # Add the current cpu to the online list and remove it from the
+                # offline list
+                on_cpus.append(cpu)
+                off_cpus.remove(cpu)
+
+                # Switch the output file so the previous samples are not overwritten
+                energy, samples = outfiles(i, on_cpus, freq)
+
+                # If we are continuing from a previous experiment and this set has
+                # already been run, skip it
+                if args.cont and os.path.isfile(os.path.join(outdir, energy)) and os.path.isfile(os.path.join(outdir, samples)):
+                    continue
+
+                # Bring the on_cpus online take the off_cpus offline
+                update_cpus(target, on_cpus, off_cpus)
+                target.cpufreq.set_frequency(cpu, freq)
+
+                # Update sandbox and isolated cgroups
+                sandbox_cg.set(cpus=on_cpus)
+                isolated_cg.set(cpus=off_cpus)
+
+                # Run dhrystone benchmark for longer than the requested time so
+                # we have extra time to set up the measuring device
+                for on_cpu in on_cpus:
+                    target.execute('nohup taskset {:x} {} -t {} -r {}  2>/dev/null 1>/dev/null &'.format(1 << (on_cpu), dhrystone, 1, args.duration_s+30))
+
+                # Start measuring
+                te.emeter.reset()
+
+                # Sleep for the required time
+                sleep(args.duration_s)
+
+                # Stop measuring
+                te.emeter.report(outdir, out_energy=energy, out_samples=samples)
+
+                # Since we are using nohup, the benchmark doesn't show up in
+                # process list. Instead sleep until we can be sure the benchmark
+                # is dead.
+                sleep(30)
+
+    # Restore all the cpus
+    target.hotplug.online_all()
 
 def experiment():
     # Check if the dhyrstone binary is on the device
@@ -117,64 +173,11 @@ def experiment():
     # Freeze all non critical tasks
     target.cgroups.freeze(exclude=CRITICAL_TASKS)
 
-    # For each cluster
-    for cluster in clusters:
-        # Remove all userspace tasks from the cluster
-        sandbox_cg, isolated_cg = target.cgroups.isolate(cluster)
+    # Remove all userspace tasks from the cluster
+    sandbox_cg, isolated_cg = target.cgroups.isolate([])
 
-        # For each frequency on the cluster
-        for freq in target.cpufreq.list_frequencies(cluster[0]):
-
-            # Keep track of offline and online cpus
-            off_cpus = cpus[:]
-            on_cpus = []
-
-            # For each cpu in the cluster
-            for cpu in cluster:
-                # Add the current cpu to the online list and remove it from the
-                # offline list
-                on_cpus.append(cpu)
-                off_cpus.remove(cpu)
-
-                # Switch the output file so the previous samples are not overwritten
-                energy, samples = outfiles(on_cpus, freq)
-
-                # If we are continuing from a previous experiment and this set has
-                # already been run, skip it
-                if args.cont and os.path.isfile(os.path.join(outdir, energy)) and os.path.isfile(os.path.join(outdir, samples)):
-                    continue
-
-                # Bring the on_cpus online take the off_cpus offline
-                update_cpus(target, on_cpus, off_cpus)
-                for on_cpu in on_cpus:
-                    target.cpufreq.set_frequency(cpu, freq)
-
-                # Update the target cgroup in case hotplugging has introduced
-                # any errors
-                sandbox_cg.set(cpus=on_cpus)
-                isolated_cg.set(cpus=off_cpus)
-
-                # Run dhrystone benchmark for longer than the requested time so
-                # we have extra time to set up the measuring device
-                for on_cpu in on_cpus:
-                    target.execute('nohup taskset {:x} {} -t {} -r {}  2>/dev/null 1>/dev/null &'.format(1 << (on_cpu), dhrystone, 1, args.duration_s+30))
-
-                # Start measuring
-                te.emeter.reset()
-
-                # Sleep for the required time
-                sleep(args.duration_s)
-
-                # Stop measuring
-                te.emeter.report(outdir, out_energy=energy, out_samples=samples)
-
-                # Since we are using nohup, the benchmark doesn't show up in
-                # process list. Instead sleep until we can be sure the benchmark
-                # is dead.
-                sleep(30)
-
-    # Restore all the cpus
-    target.hotplug.online_all()
+    # Run measurements on single cluster
+    single_cluster(cpus, sandbox_cg, isolated_cg, dhrystone, outdir)
 
     # Restore all governors
     for i, governor in enumerate(governors):

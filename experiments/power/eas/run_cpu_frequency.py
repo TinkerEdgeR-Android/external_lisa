@@ -69,9 +69,29 @@ def update_cpus(target, on_cpus, off_cpus):
     for cpu in off_cpus:
         target.hotplug.offline(cpu)
 
+def run_dhrystone(target, dhrystone, outdir, energy, samples, on_cpus):
+    # Run dhrystone benchmark for longer than the requested time so
+    # we have extra time to set up the measuring device
+    for on_cpu in on_cpus:
+        target.execute('nohup taskset {:x} {} -t {} -r {}  2>/dev/null 1>/dev/null &'.format(1 << (on_cpu), dhrystone, 1, args.duration_s+30))
+
+    # Start measuring
+    te.emeter.reset()
+
+    # Sleep for the required time
+    sleep(args.duration_s)
+
+    # Stop measuring
+    te.emeter.report(outdir, out_energy=energy, out_samples=samples)
+
+    # Since we are using nohup, the benchmark doesn't show up in
+    # process list. Instead sleep until we can be sure the benchmark
+    # is dead.
+    sleep(30)
+
 def single_cluster(cpus, sandbox_cg, isolated_cg, dhrystone, outdir):
     # For each cluster
-    for i, cluster in enumerate(clusters):
+    for i, cluster in enumerate(CLUSTERS):
 
         # For each frequency on the cluster
         for freq in target.cpufreq.list_frequencies(cluster[0]):
@@ -103,27 +123,76 @@ def single_cluster(cpus, sandbox_cg, isolated_cg, dhrystone, outdir):
                 sandbox_cg.set(cpus=on_cpus)
                 isolated_cg.set(cpus=off_cpus)
 
-                # Run dhrystone benchmark for longer than the requested time so
-                # we have extra time to set up the measuring device
-                for on_cpu in on_cpus:
-                    target.execute('nohup taskset {:x} {} -t {} -r {}  2>/dev/null 1>/dev/null &'.format(1 << (on_cpu), dhrystone, 1, args.duration_s+30))
-
-                # Start measuring
-                te.emeter.reset()
-
-                # Sleep for the required time
-                sleep(args.duration_s)
-
-                # Stop measuring
-                te.emeter.report(outdir, out_energy=energy, out_samples=samples)
-
-                # Since we are using nohup, the benchmark doesn't show up in
-                # process list. Instead sleep until we can be sure the benchmark
-                # is dead.
-                sleep(30)
+                # Run the benchmark
+                run_dhrystone(target, dhrystone, outdir, energy, samples, on_cpus)
 
     # Restore all the cpus
     target.hotplug.online_all()
+
+
+def multiple_clusters(cpus, sandbox_cg, isolated_cg, dhrystone, outdir):
+    # Keep track of offline and online cpus
+    off_cpus = cpus[:]
+    on_cpus = []
+    prefix = ''
+
+    if len(CLUSTERS) != 2:
+        print 'Only 2 clusters is supported.'
+        return
+
+    # For each cluster
+    for i, cluster in enumerate(CLUSTERS):
+        # A cpu in each cluster
+        cpu = cluster[0]
+
+        freq = target.cpufreq.list_frequencies(cpu)[0]
+
+        # Set frequency to min
+        target.cpufreq.set_frequency(cpu, freq)
+
+        # Keep cpu on
+        on_cpus.append(cpu)
+        off_cpus.remove(cpu)
+
+        prefix = '{}cluster{}-cores{}-freq{}_'.format(prefix, i, cpu, freq)
+
+    # Update cgroups to reflect on_cpus and off_cpus
+    sandbox_cg.set(cpus=on_cpus)
+    isolated_cg.set(cpus=off_cpus)
+
+    # Bring the on_cpus online take the off_cpus offline
+    update_cpus(target, on_cpus, off_cpus)
+
+    # For one cpu in each cluster
+    for i, cpu in enumerate(on_cpus):
+
+        # For each frequency on the cluster
+        for freq in target.cpufreq.list_frequencies(cpu):
+
+            # Switch the output file so the previous samples are not overwritten
+            curr_prefix = prefix.replace('cores{}-freq{}'.format(cpu,
+                    target.cpufreq.list_frequencies(cpu)[0]),
+                    'cores{}-freq{}'.format(cpu, freq))
+            samples = '{}samples.csv'.format(curr_prefix)
+            energy = '{}energy.json'.format(curr_prefix)
+
+            # If we are continuing from a previous experiment and this set has
+            # already been run, skip it
+            if args.cont and os.path.isfile(os.path.join(outdir, energy)) and os.path.isfile(os.path.join(outdir, samples)):
+                continue
+
+            # Set frequency
+            target.cpufreq.set_frequency(cpu, freq)
+
+            # Run the benchmark
+            run_dhrystone(target, dhrystone, outdir, energy, samples, on_cpus)
+
+        # Reset frequency to min
+        target.cpufreq.set_frequency(cpu, target.cpufreq.list_frequencies(cpu)[0])
+
+    # Restore all the cpus
+    target.hotplug.online_all()
+
 
 def experiment():
     # Check if the dhyrstone binary is on the device
@@ -144,8 +213,7 @@ def experiment():
         os.makedirs(outdir)
 
     # Get clusters and cpus
-    clusters = te.topology.get_level('cluster')
-    cpus = [cpu for cluster in clusters for cpu in cluster]
+    cpus = [cpu for cluster in CLUSTERS for cpu in cluster]
 
     # Prevent screen from dozing
     Screen.set_doze_always_on(target, on=False)
@@ -178,6 +246,9 @@ def experiment():
 
     # Run measurements on single cluster
     single_cluster(cpus, sandbox_cg, isolated_cg, dhrystone, outdir)
+
+    # Run measurements on multiple clusters
+    multiple_clusters(cpus, sandbox_cg, isolated_cg, dhrystone, outdir)
 
     # Restore all governors
     for i, governor in enumerate(governors):
@@ -241,5 +312,6 @@ if args.serial:
 # Initialize a test environment using:
 te = TestEnv(my_conf, wipe=False)
 target = te.target
+CLUSTERS = te.topology.get_level('cluster')
 
 results = experiment()

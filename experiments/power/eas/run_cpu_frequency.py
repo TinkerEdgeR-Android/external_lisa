@@ -114,7 +114,7 @@ def experiment():
     # For each cluster
     for cluster in clusters:
         # Remove all userspace tasks from the cluster
-        target_cg, _ = target.cgroups.isolate(cluster)
+        sandbox_cg, isolated_cg = target.cgroups.isolate(cluster)
 
         # For each frequency on the cluster
         for freq in target.cpufreq.list_frequencies(cluster[0]):
@@ -135,7 +135,8 @@ def experiment():
 
                 # Update the target cgroup in case hotplugging has introduced
                 # any errors
-                target_cg.set(cpus=on_cpus)
+                sandbox_cg.set(cpus=on_cpus)
+                isolated_cg.set(cpus=off_cpus)
 
                 # Switch the output file so the previous samples are not overwritten
                 energy, samples = outfiles(on_cpus, freq)

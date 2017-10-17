@@ -94,6 +94,10 @@ def experiment():
     # Turn off screen
     Screen.set_screen(target, on=False)
 
+    # Stop thermal engine and perfd
+    target.execute("stop thermal-engine")
+    target.execute("stop perfd")
+
     # Store governors so they can be restored later
     governors = [ target.cpufreq.get_governor(cpu) for cpu in cpus]
 
@@ -162,6 +166,10 @@ def experiment():
 
     # Restore non critical tasks
     target.cgroups.freeze(thaw=True)
+
+    # Stop thermal engine and perfd
+    target.execute("start thermal-engine")
+    target.execute("start perfd")
 
     # Dump platform
     te.platform_dump(outdir)

@@ -39,6 +39,10 @@ parser.add_argument('--out_prefix', dest='out_prefix', action='store',
                     default='default',
                     help='prefix for out directory')
 
+parser.add_argument('--continue', dest='cont', action='store',
+                    default=False, type=bool,
+                    help='continue previous experiment with same prefix')
+
 parser.add_argument('--duration', dest='duration_s', action='store',
                     default=30, type=int,
                     help='Duration of test (default 30s)')
@@ -74,12 +78,14 @@ def experiment():
 
     # Create results directory
     outdir=te.res_dir + '_' + args.out_prefix
-    try:
-        shutil.rmtree(outdir)
-    except:
-        print "couldn't remove " + outdir
-        pass
-    os.makedirs(outdir)
+    if not args.cont:
+        try:
+            shutil.rmtree(outdir)
+        except:
+            print "couldn't remove " + outdir
+            pass
+    if not os.path.exists(outdir):
+        os.makedirs(outdir)
 
     # Get clusters and cpus
     clusters = te.topology.get_level('cluster')
@@ -130,19 +136,23 @@ def experiment():
                 on_cpus.append(cpu)
                 off_cpus.remove(cpu)
 
-                # Bring the on_cpus online and take the off_cpus offline
+                # Switch the output file so the previous samples are not overwritten
+                energy, samples = outfiles(on_cpus, freq)
+
+                # If we are continuing from a previous experiment and this set has
+                # already been run, skip it
+                if args.cont and os.path.isfile(os.path.join(outdir, energy)) and os.path.isfile(os.path.join(outdir, samples)):
+                    continue
+
+                # Bring the on_cpus online take the off_cpus offline
                 update_cpus(target, on_cpus, off_cpus)
+                for on_cpu in on_cpus:
+                    target.cpufreq.set_frequency(cpu, freq)
 
                 # Update the target cgroup in case hotplugging has introduced
                 # any errors
                 sandbox_cg.set(cpus=on_cpus)
                 isolated_cg.set(cpus=off_cpus)
-
-                # Switch the output file so the previous samples are not overwritten
-                energy, samples = outfiles(on_cpus, freq)
-
-                # Set cpu frequency for the newly add cpu
-                target.cpufreq.set_frequency(cpu, freq)
 
                 # Run dhrystone benchmark for longer than the requested time so
                 # we have extra time to set up the measuring device

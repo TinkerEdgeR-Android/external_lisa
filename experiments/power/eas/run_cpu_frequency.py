@@ -146,8 +146,8 @@ def experiment():
 
                 # Run dhrystone benchmark for longer than the requested time so
                 # we have extra time to set up the measuring device
-                target.execute('nohup {} -t {} -r {}  2>/dev/null 1>/dev/null'
-                        ' &'.format(dhrystone, len(on_cpus), args.duration_s+30))
+                for on_cpu in on_cpus:
+                    target.execute('nohup taskset {:x} {} -t {} -r {}  2>/dev/null 1>/dev/null &'.format(1 << (on_cpu), dhrystone, 1, args.duration_s+30))
 
                 # Start measuring
                 te.emeter.reset()

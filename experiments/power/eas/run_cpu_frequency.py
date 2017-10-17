@@ -147,7 +147,7 @@ def experiment():
                 # Run dhrystone benchmark for longer than the requested time so
                 # we have extra time to set up the measuring device
                 target.execute('nohup {} -t {} -r {}  2>/dev/null 1>/dev/null'
-                        ' &'.format(dhrystone, len(on_cpus), args.duration_s+60))
+                        ' &'.format(dhrystone, len(on_cpus), args.duration_s+30))
 
                 # Start measuring
                 te.emeter.reset()
@@ -158,8 +158,10 @@ def experiment():
                 # Stop measuring
                 te.emeter.report(outdir, out_energy=energy, out_samples=samples)
 
-                # Kill dhrystone so it does not affect the next measurement
-                pids = target.killall('dhyrstone')
+                # Since we are using nohup, the benchmark doesn't show up in
+                # process list. Instead sleep until we can be sure the benchmark
+                # is dead.
+                sleep(30)
 
     # Restore all the cpus
     target.hotplug.online_all()

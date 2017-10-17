@@ -98,6 +98,9 @@ def experiment():
     target.execute("stop thermal-engine")
     target.execute("stop perfd")
 
+    # Take a wakelock
+    System.wakelock(target, take=True)
+
     # Store governors so they can be restored later
     governors = [ target.cpufreq.get_governor(cpu) for cpu in cpus]
 
@@ -166,6 +169,9 @@ def experiment():
 
     # Restore non critical tasks
     target.cgroups.freeze(thaw=True)
+
+    # Release wakelock
+    System.wakelock(target, take=False)
 
     # Stop thermal engine and perfd
     target.execute("start thermal-engine")

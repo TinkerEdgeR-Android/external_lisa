@@ -34,8 +34,8 @@ class PowerProfile:
 
         'battery.capacity' : 'This is the battery capacity in mAh',
 
-        'cpu.idle' : 'Power consumption when CPU is suspended',
-        'cpu.awake' : 'Additional power consumption when CPU is in a kernel'
+        'cpu.suspend' : 'Power consumption when CPU is suspended',
+        'cpu.idle' : 'Additional power consumption when CPU is in a kernel'
                 ' idle loop',
         'cpu.clusters.cores' : 'Number of cores each CPU cluster contains',
 
@@ -122,7 +122,7 @@ class PowerProfileGenerator:
         self.emeter = emeter
         self.datasheet = datasheet
         self.power_profile = PowerProfile()
-        self.clusters = None
+        self.cpu = None
 
     def get(self):
         self._compute_measurements()
@@ -148,22 +148,22 @@ class PowerProfileGenerator:
 
         self._run_experiment(os.path.join('power', 'eas',
                 'run_cpu_frequency.py'), duration, 'cpu_freq')
-        self.clusters = CpuFrequencyPowerAverage.get(
+        self.cpu= CpuFrequencyPowerAverage.get(
                 os.path.join(os.environ['LISA_HOME'], 'results',
                 'CpuFrequency_cpu_freq'), os.path.join(os.environ['LISA_HOME'],
                 'results', 'CpuFrequency', 'platform.json'),
                 self.emeter['power_column'])
 
-    def _remove_cpu_idle(self, power):
-        cpu_idle_power = self.power_profile.get_item('cpu.idle')
-        if cpu_idle_power is None:
-            self._measure_cpu_idle()
-            cpu_idle_power = self.power_profile.get_item('cpu.idle')
+    def _remove_cpu_suspend(self, power):
+        cpu_suspend_power = self.power_profile.get_item('cpu.suspend')
+        if cpu_suspend_power is None:
+            self._measure_cpu_suspend()
+            cpu_suspend_power = self.power_profile.get_item('cpu.suspend')
 
-        return power - cpu_idle_power
+        return power - cpu_suspend_power
 
-    def _remove_cpu_active(self, power, duration, results_dir):
-        if self.clusters is None:
+    def _remove_cpu_power(self, power, duration, results_dir):
+        if self.cpu is None:
             self._cpu_freq_power_average()
 
         cfile = os.path.join(os.environ['LISA_HOME'], 'results', results_dir,
@@ -175,18 +175,17 @@ class PowerProfileGenerator:
         for cl in sorted(time_in_state_json['clusters']):
             time_in_state_cpus = set(int(c) for c in time_in_state_json['clusters'][cl])
 
-            for cluster in self.clusters:
-                if time_in_state_cpus == set(cluster.get_cpus()):
-                    cpu_cnt = len(cluster.get_cpus())
+            for cluster in self.cpu.get_clusters():
+                if time_in_state_cpus == set(self.cpu.get_cores(cluster)):
+                    cpu_cnt = len(self.cpu.get_cores(cluster))
 
                     for freq, time_cs in time_in_state_json['time_delta'][cl].iteritems():
                         time_s = time_cs * 0.01
-                        energy += time_s * cluster.get_cpu_cost(int(freq))
+                        energy += time_s * self.cpu.get_core_cost(cluster, int(freq))
 
                     # TODO remove cpu cluster cost and addtional base cost
-                    # This will require updating the cpu_frequency script
-                    # to calcualte the base cost and a kernel patch to
-                    # keep track of cluster time
+                    # This will require a kernel patch to keep track of cluster
+                    # time
 
         return power - energy / duration * 1000
 
@@ -198,34 +197,32 @@ class PowerProfileGenerator:
                 args='--collect=energy,time_in_state --brightness 100 --image={}'.format(image))
         display_plus_cpu_power = self._power_average(results_dir)
 
-        display_power = self._remove_cpu_active(display_plus_cpu_power,
+        display_power = self._remove_cpu_power(display_plus_cpu_power,
                 duration, results_dir)
 
         return power - display_power
 
-    # The power profile defines cpu.idle as a suspended cpu
+    def _measure_cpu_suspend(self):
+        duration = 120
+
+        self._run_experiment('run_suspend_resume.py', duration, 'cpu_suspend',
+                args='--collect energy')
+        power = self._power_average('SuspendResume_cpu_suspend',
+                start=duration*0.25, remove_outliers=True)
+
+        self.power_profile.add_item('cpu.suspend', power)
+
     def _measure_cpu_idle(self):
         duration = 120
 
-        self._run_experiment('run_suspend_resume.py', duration, 'cpu_idle',
+        self._run_experiment('run_idle_resume.py', duration, 'cpu_idle',
                 args='--collect energy')
-        power = self._power_average('SuspendResume_cpu_idle',
-                start=duration*0.25, remove_outliers=True)
-
-        self.power_profile.add_item('cpu.idle', power)
-
-    # The power profile defines cpu.awake as an idle cpu
-    def _measure_cpu_awake(self):
-        duration = 120
-
-        self._run_experiment('run_idle_resume.py', duration, 'cpu_awake',
-                args='--collect energy')
-        power = self._power_average('IdleResume_cpu_awake', start=duration*0.25,
+        power = self._power_average('IdleResume_cpu_idle', start=duration*0.25,
                 remove_outliers=True)
 
-        power = self._remove_cpu_idle(power)
+        power = self._remove_cpu_suspend(power)
 
-        self.power_profile.add_item('cpu.awake', power)
+        self.power_profile.add_item('cpu.idle', power)
 
     def _measure_screen_on(self):
         duration = 120
@@ -235,7 +232,7 @@ class PowerProfileGenerator:
                 args='--collect=energy,time_in_state --brightness 0')
         power = self._power_average(results_dir)
 
-        power = self._remove_cpu_active(power, duration, results_dir)
+        power = self._remove_cpu_power(power, duration, results_dir)
 
         self.power_profile.add_item('screen.on', power)
 
@@ -247,53 +244,72 @@ class PowerProfileGenerator:
                 args='--collect=energy,time_in_state --brightness 100')
         power = self._power_average(results_dir)
 
-        power = self._remove_cpu_active(power, duration, results_dir)
+        power = self._remove_cpu_power(power, duration, results_dir)
 
         self.power_profile.add_item('screen.full', power)
 
     def _measure_cpu_cluster_cores(self):
-        if self.clusters is None:
+        if self.cpu is None:
             self._cpu_freq_power_average()
 
-        cpu_cluster_cores = [ len(cluster.get_cpus()) for cluster in self.clusters ]
-        self.power_profile.add_array('cpu.clusters.cores', cpu_cluster_cores)
+        self.power_profile.add_array('cpu.clusters.cores', self.cpu.get_clusters())
 
-    def _measure_cpu_base_cluster(self):
-        if self.clusters is None:
+    def _measure_cpu_active_power(self):
+        if self.cpu is None:
             self._cpu_freq_power_average()
 
-        for i, cluster in enumerate(self.clusters):
+        comment = 'Additional power used when any cpu core is turned on'\
+                ' in any cluster. Does not include the power used by the cpu'\
+                ' cluster(s) or core(s).'
+        self.power_profile.add_item('cpu.active', self.cpu.get_active_cost()*1000,
+                comment)
+
+    def _measure_cpu_cluster_power(self):
+        if self.cpu is None:
+            self._cpu_freq_power_average()
+
+        clusters = self.cpu.get_clusters()
+
+        for cluster in clusters:
+            cluster_power = self.cpu.get_cluster_cost(cluster)
+
             comment = 'Additional power used when any cpu core is turned on'\
                     ' in cluster{}. Does not include the power used by the cpu'\
-                    ' core(s).'.format(i)
-            self.power_profile.add_item('cpu.base.cluster{}'.format(i),
-                    cluster.get_cluster_cost()*1000, comment)
+                    ' core(s).'.format(cluster)
+            self.power_profile.add_item('cpu.cluster_power.cluster{}'.format(cluster),
+                    cluster_power*1000, comment)
 
-    def _measure_cpu_speeds_cluster(self):
-        if self.clusters is None:
+    def _measure_cpu_core_speeds(self):
+        if self.cpu is None:
             self._cpu_freq_power_average()
 
-        for i, cluster in enumerate(self.clusters):
+        clusters = self.cpu.get_clusters()
+
+        for cluster in clusters:
+            core_speeds = self.cpu.get_core_freqs(cluster)
+
             comment = 'Different CPU speeds as reported in /sys/devices/system/'\
-                    'cpu/cpu{}/cpufreq/scaling_available_frequencies'.format(
-                    cluster.get_cpus()[0])
-            freqs = cluster.get_cpu_freqs()
-            self.power_profile.add_array('cpu.speeds.cluster{}'.format(i), freqs,
-                    comment)
+                    'cpu/cpuX/cpufreq/scaling_available_frequencies'
+            self.power_profile.add_array('cpu.core_speeds.cluster{}'.format(cluster),
+                    core_speeds, comment)
 
-    def _measure_cpu_active_cluster(self):
-        if self.clusters is None:
+    def _measure_cpu_core_power(self):
+        if self.cpu is None:
             self._cpu_freq_power_average()
 
-        for i, cluster in enumerate(self.clusters):
-            freqs = cluster.get_cpu_freqs()
-            cpu_active = [ cluster.get_cpu_cost(freq)*1000 for freq in freqs ]
+        clusters = self.cpu.get_clusters()
+
+        for cluster in clusters:
+            core_speeds = self.cpu.get_core_freqs(cluster)
+
+            core_powers = [ self.cpu.get_core_cost(cluster, core_speed)*1000 for core_speed in core_speeds ]
             comment = 'Additional power used by a CPU from cluster {} when'\
                     ' running at different speeds. Currently this measurement'\
-                    ' also includes cluster cost.'.format(i)
-            subcomments = [ '{} MHz CPU speed'.format(freq*0.001) for freq in freqs ]
-            self.power_profile.add_array('cpu.active.cluster{}'.format(i),
-                    cpu_active, comment, subcomments)
+                    ' also includes cluster cost.'.format(cluster)
+            subcomments = [ '{} MHz CPU speed'.format(core_speed*0.001) for core_speed in core_speeds ]
+
+            self.power_profile.add_array('cpu.core_power.cluster{}'.format(cluster),
+                    core_powers, comment, subcomments)
 
     def _measure_camera_flashlight(self):
         duration = 120
@@ -306,7 +322,7 @@ class PowerProfileGenerator:
 
         power = self._remove_screen_full(power, duration,
                 'power_profile_camera_flashlight.png')
-        power = self._remove_cpu_active(power, duration, results_dir)
+        power = self._remove_cpu_power(power, duration, results_dir)
 
         self.power_profile.add_item('camera.flashlight', power)
 
@@ -321,7 +337,7 @@ class PowerProfileGenerator:
 
         power = self._remove_screen_full(power, duration,
                 'power_profile_camera_avg.png')
-        power = self._remove_cpu_active(power, duration, results_dir)
+        power = self._remove_cpu_power(power, duration, results_dir)
 
         self.power_profile.add_item('camera.avg', power)
 
@@ -335,17 +351,18 @@ class PowerProfileGenerator:
 
         power = self._remove_screen_full(power, duration,
                 'power_profile_gps_on.png')
-        power = self._remove_cpu_active(power, duration, results_dir)
+        power = self._remove_cpu_power(power, duration, results_dir)
 
         self.power_profile.add_item('gps.on', power)
 
     def _compute_measurements(self):
-        self._measure_cpu_idle()
-        self._measure_cpu_awake()
+        #self._measure_cpu_suspend()
+        #self._measure_cpu_idle()
         self._measure_cpu_cluster_cores()
-        self._measure_cpu_base_cluster()
-        self._measure_cpu_speeds_cluster()
-        self._measure_cpu_active_cluster()
+        self._measure_cpu_active_power()
+        self._measure_cpu_cluster_power()
+        self._measure_cpu_core_speeds()
+        self._measure_cpu_core_power()
         self._measure_screen_on()
         self._measure_screen_full()
         self._measure_camera_flashlight()

@@ -1,0 +1,9 @@
+[submodule "libs/devlib"]
+	path = libs/devlib
+	url = https://github.com/ARM-Software/devlib.git
+[submodule "libs/trappy"]
+	path = libs/trappy
+	url = https://github.com/ARM-Software/trappy.git
+[submodule "libs/bart"]
+	path = libs/bart
+	url = https://github.com/ARM-Software/bart.git

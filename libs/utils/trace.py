@@ -142,8 +142,7 @@ class Trace(object):
         self.cgroup_info = cgroup_info
 
         self.__registerTraceEvents(events) if events else None
-        self.__parseTrace(data_dir, tasks, window, normalize_time,
-                          trace_format)
+        self.__parseTrace(data_dir, tasks, window, trace_format)
 
         # Minimum and Maximum x_time to use for all plots
         self.x_min = 0
@@ -216,13 +215,16 @@ class Trace(object):
         if 'cpu_frequency' in events:
             self.events.append('cpu_frequency_devlib')
 
-    def __parseTrace(self, path, window, trace_format):
+    def __parseTrace(self, path, tasks, window, trace_format):
         """
         Internal method in charge of performing the actual parsing of the
         trace.
 
         :param path: path to the trace folder (or trace file)
         :type path: str
+
+        :param tasks: filter data for the specified tasks only
+        :type tasks: list(str)
 
         :param window: time window to consider when parsing the trace
         :type window: tuple(int, int)
@@ -269,7 +271,7 @@ class Trace(object):
                              'nor function stats')
 
         # Index PIDs and Task names
-        self.__loadTasksNames()
+        self.__loadTasksNames(tasks)
 
         self.__computeTimeSpan()
 
@@ -305,21 +307,26 @@ class Trace(object):
         for evt in self.available_events:
             self._log.debug(' - %s', evt)
 
-    def __loadTasksNames(self):
+    def __loadTasksNames(self, tasks):
         """
         Try to load tasks names using one of the supported events.
+
+        :param tasks: list of task names. If None, load all tasks found.
+        :type tasks: list(str) or NoneType
         """
-        def load(event, name_key, pid_key):
+        def load(tasks, event, name_key, pid_key):
             df = self._dfg_trace_event(event)
+            if tasks is None:
+                tasks = df[name_key].unique()
             self._scanTasks(df, name_key=name_key, pid_key=pid_key)
             self._scanTgids(df)
 
         if 'sched_switch' in self.available_events:
-            load('sched_switch', 'prev_comm', 'prev_pid')
+            load(tasks, 'sched_switch', 'prev_comm', 'prev_pid')
             return
 
         if 'sched_load_avg_task' in self.available_events:
-            load('sched_load_avg_task', 'comm', 'pid')
+            load(tasks, 'sched_load_avg_task', 'comm', 'pid')
             return
 
         self._log.warning('Failed to load tasks names from trace events')
@@ -415,7 +422,14 @@ class Trace(object):
 
         :param name: task PID
         :type name: int
+
+        :return: the list of names of the tasks whose PID matches the required one,
+                 the last time they ran in the current trace
         """
+        try:
+            return self._tasks_by_pid.ix[pid].values[0]
+        except KeyError:
+            return None
 
     def getTgidFromPid(self, pid):
         return _pid_tgid.ix[pid].values[0]

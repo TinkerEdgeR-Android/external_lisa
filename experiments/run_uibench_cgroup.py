@@ -58,11 +58,10 @@ parser.add_argument('--serial', dest='serial', action='store',
 
 args = parser.parse_args()
 
-def experiment():
+def experiment(outdir):
     # Get workload
     wload = Workload.getInstance(te, 'UiBench')
 
-    outdir=te.res_dir + '_' + args.out_prefix
     try:
         shutil.rmtree(outdir)
     except:
@@ -127,4 +126,18 @@ if args.serial:
 te = TestEnv(my_conf, wipe=False)
 target = te.target
 
-results = experiment()
+outdir=te.res_dir + '_' + args.out_prefix
+results = experiment(outdir)
+
+trace_file = os.path.join(outdir, "trace.html")
+tr = Trace(None, trace_file,
+    cgroup_info = {
+	'cgroups': ['foreground', 'background', 'system-background', 'top-app', 'rt'],
+	'controller_ids': { 4: 'cpuset', 2: 'schedtune' }
+    },
+    events=[ 'sched_switch', 'cgroup_attach_task_devlib', 'cgroup_attach_task', 'sched_process_fork' ],
+    normalize_time=False)
+
+tr.data_frame.cpu_residencies_cgroup('schedtune')
+tr.analysis.residency.plot_cgroup('schedtune', idle=False)
+tr.analysis.residency.plot_cgroup('schedtune', idle=True)

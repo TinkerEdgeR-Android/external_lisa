@@ -604,8 +604,9 @@ class Trace(object):
         sdf = sdf.join(self._pid_tgid, on='prev_pid').rename(columns = {'tgid': 'prev_tgid'})
 
         df = self._tasks_by_pid.rename(columns = { 'next_comm': 'comm' })
-        sdf = sdf.join(df, on='next_tgid').rename(columns = {'comm': 'next_tgid_comm'})
-        sdf = sdf.join(df, on='prev_tgid').rename(columns = {'comm': 'prev_tgid_comm'})
+
+        sdf = sdf.join(df, on='next_tgid').rename(columns = {'TaskName': 'next_tgid_comm'})
+        sdf = sdf.join(df, on='prev_tgid').rename(columns = {'TaskName': 'prev_tgid_comm'})
         return sdf
 
 ###############################################################################

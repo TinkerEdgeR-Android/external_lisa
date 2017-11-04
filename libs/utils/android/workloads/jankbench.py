@@ -34,6 +34,7 @@ _jankbench = {
     'low_hitrate_text'  : 3,
     'high_hitrate_text' : 4,
     'edit_text'         : 5,
+    'overdraw'		: 6,
 }
 
 # Regexps for benchmark synchronization
@@ -44,10 +45,22 @@ JANKBENCH_BENCHMARK_START_RE = re.compile(
 JANKBENCH_ITERATION_COUNT_RE = re.compile(
     r'System.out: iteration: (?P<iteration>[0-9]+)'
 )
+
+# Meaning of different jankbench metrics output in the logs:
+#
+# BAD FRAME STATS:
+# mean: Mean frame duration time of all frames that are > 12ms completion time
+# std_dev: Standard deviation of all frame times > 12ms completion time
+# count_bad: Total number of frames
+#
+# JANK FRAME STATS:
+# JankP: Percent of all total frames that missed their deadline (2*16ms for
+#        tripple buffering, 16ms for double buffering).
+# count_jank: Total frames that missed their deadline (as described above).
 JANKBENCH_ITERATION_METRICS_RE = re.compile(
-    r'System.out: Mean: (?P<mean>[0-9\.]+)\s+JankP: (?P<junk_p>[0-9\.]+)\s+'
+    r'System.out: Mean: (?P<mean>[0-9\.]+)\s+JankP: (?P<jank_p>[0-9\.]+)\s+'
     'StdDev: (?P<std_dev>[0-9\.]+)\s+Count Bad: (?P<count_bad>[0-9]+)\s+'
-    'Count Jank: (?P<count_junk>[0-9]+)'
+    'Count Jank: (?P<count_jank>[0-9]+)'
 )
 JANKBENCH_BENCHMARK_DONE_RE = re.compile(
     r'I BENCH\s+:\s+BenchmarkDone!'
@@ -76,6 +89,15 @@ class Jankbench(Workload):
     # Package required by this workload
     package = 'com.android.benchmark'
 
+    test_list = \
+    ['list_view',
+    'image_list_view',
+    'shadow_grid',
+    'low_hitrate_text',
+    'high_hitrate_text',
+    'edit_text',
+    'overdraw']
+
     def __init__(self, test_env):
         super(Jankbench, self).__init__(test_env)
         self._log = logging.getLogger('Jankbench')
@@ -83,6 +105,9 @@ class Jankbench(Workload):
 
         # Set of output data reported by Jankbench
         self.db_file = None
+
+    def get_test_list(self):
+	return Jankbench.test_list
 
     def run(self, out_dir, test_name, iterations, collect):
         """
@@ -195,10 +220,10 @@ class Jankbench(Workload):
                 if match:
                     self._log.info('   Mean: %7.3f JankP: %7.3f StdDev: %7.3f Count Bad: %4d Count Jank: %4d',
                                    float(match.group('mean')),
-                                   float(match.group('junk_p')),
+                                   float(match.group('jank_p')),
                                    float(match.group('std_dev')),
                                    int(match.group('count_bad')),
-                                   int(match.group('count_junk')))
+                                   int(match.group('count_jank')))
 
         # Wait until the database file is available
         db_adb = JANKBENCH_DB_PATH + JANKBENCH_DB_NAME

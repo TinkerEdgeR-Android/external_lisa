@@ -142,6 +142,11 @@ class Jankbench(Workload):
         except KeyError:
             raise ValueError('Jankbench test [%s] not supported', test_name)
 
+        # Restart ADB in root mode - adb needs to run as root inorder to
+        # grab the db output file
+        self._log.info('Restarting ADB in root mode...')
+        self._target.adb_root(force=True)
+
         # Unlock device screen (assume no password required)
         Screen.unlock(self._target)
 

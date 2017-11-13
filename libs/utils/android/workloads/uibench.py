@@ -32,23 +32,35 @@ class UiBench(Workload):
     # Package required by this workload
     package = 'com.android.test.uibench'
 
-    # Supported activities list, obtained via:
-    # adb shell dumpsys package | grep -i uibench | grep Activity
-    test_BitmapUpload = 'BitmapUploadActivity'
-    test_DialogList = 'DialogListActivity'
-    test_EditTextType = 'EditTextTypeActivity'
-    test_FullscreenOverdraw = 'FullscreenOverdrawActivity'
-    test_GlTextureView = 'GlTextureViewActivity'
-    test_InflatingList = 'InflatingListActivity'
-    test_Invalidate = 'InvalidateActivity'
-    test_ShadowGrid = 'ShadowGridActivity'
-    test_TextCacheHighHitrate = 'TextCacheHighHitrateActivity'
-    test_TextCacheLowHitrate = 'TextCacheLowHitrateActivity'
-    test_Transition = 'ActivityTransition'
-    test_TransitionDetails = 'ActivityTransitionDetails'
-    test_TrivialAnimation = 'TrivialAnimationActivity'
-    test_TrivialList = 'TrivialListActivity'
-    test_TrivialRecyclerView = 'TrivialRecyclerViewActivity'
+    # Instrumentation required to run tests
+    test_package = 'com.android.uibench.janktests'
+
+    # Supported tests list
+    test_ClippedListView = 'UiBenchJankTests#testClippedListView'
+    test_DialogListFling = 'UiBenchJankTests#testDialogListFling'
+    test_FadingEdgeListViewFling = 'UiBenchJankTests#testFadingEdgeListViewFling'
+    test_FullscreenOverdraw = 'UiBenchJankTests#testFullscreenOverdraw'
+    test_GLTextureView = 'UiBenchJankTests#testGLTextureView'
+    test_InflatingListViewFling = 'UiBenchJankTests#testInflatingListViewFling'
+    test_Invalidate = 'UiBenchJankTests#testInvalidate'
+    test_InvalidateTree = 'UiBenchJankTests#testInvalidateTree'
+    test_OpenNavigationDrawer = 'UiBenchJankTests#testOpenNavigationDrawer'
+    test_OpenNotificationShade = 'UiBenchJankTests#testOpenNotificationShade'
+    test_ResizeHWLayer = 'UiBenchJankTests#testResizeHWLayer'
+    test_SaveLayerAnimation = 'UiBenchJankTests#testSaveLayerAnimation'
+    test_SlowBindRecyclerViewFling = 'UiBenchJankTests#testSlowBindRecyclerViewFling'
+    test_SlowNestedRecyclerViewFling = 'UiBenchJankTests#testSlowNestedRecyclerViewFling'
+    test_SlowNestedRecyclerViewInitialFling = 'UiBenchJankTests#testSlowNestedRecyclerViewInitialFling'
+    test_TrivialAnimation = 'UiBenchJankTests#testTrivialAnimation'
+    test_TrivialListViewFling = 'UiBenchJankTests#testTrivialListViewFling'
+    test_TrivialRecyclerListViewFling = 'UiBenchJankTests#testTrivialRecyclerListViewFling'
+    test_BitmapUploadJank = 'UiBenchRenderingJankTests#testBitmapUploadJank'
+    test_ShadowGridListFling = 'UiBenchRenderingJankTests#testShadowGridListFling'
+    test_EditTextTyping = 'UiBenchTextJankTests#testEditTextTyping'
+    test_LayoutCacheHighHitrateFling = 'UiBenchTextJankTests#testLayoutCacheHighHitrateFling'
+    test_LayoutCacheLowHitrateFling = 'UiBenchTextJankTests#testLayoutCacheLowHitrateFling'
+    test_ActivityTransitionsAnimation = 'UiBenchTransitionsJankTests#testActivityTransitionsAnimation'
+    test_WebViewFling = 'UiBenchWebView#testWebViewFling'
 
     def __init__(self, test_env):
         super(UiBench, self).__init__(test_env)
@@ -112,19 +124,21 @@ class UiBench(Workload):
         os.system(self._adb('logcat -c'));
 
         # Regexps for benchmark synchronization
-        start_logline = r'ActivityManager: START.*'\
-                         'cmp=com.android.test.uibench/{}'.format(activity)
+        start_logline = r'TestRunner: started'
         UIBENCH_BENCHMARK_START_RE = re.compile(start_logline)
         self._log.debug("START string [%s]", start_logline)
 
         # Parse logcat output lines
         logcat_cmd = self._adb(
-                'logcat ActivityManager:* System.out:I *:S BENCH:*'\
+                'logcat TestRunner:* System.out:I *:S BENCH:*'\
                 .format(self._target.adb_name))
         self._log.info("%s", logcat_cmd)
 
-        # Start the activity
-        System.start_activity(self._target, self.package, activity)
+        # Run benchmark with a lot of iterations to avoid finishing before duration_s elapses
+        command = "nohup am instrument -e iterations 1000000 -e class {}{} -w {}".format(
+            self.test_package, activity, self.test_package)
+        self._target.background(command)
+
         logcat = Popen(logcat_cmd, shell=True, stdout=PIPE)
         while True:
 

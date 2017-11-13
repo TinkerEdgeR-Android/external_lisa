@@ -31,9 +31,34 @@ class System(object):
 
     @staticmethod
     def systrace_start(target, trace_file, time=None,
-                       events=['gfx', 'view', 'sched', 'freq', 'idle']):
-
+                       events=['gfx', 'view', 'sched', 'freq', 'idle'],
+                       conf=None):
+        buffsize = "40000"
         log = logging.getLogger('System')
+
+        # Android needs good TGID caching support, until atrace has it,
+        # just increase the cache size to avoid missing TGIDs (and also comms)
+        target.target.execute("echo 8192 > /sys/kernel/debug/tracing/saved_cmdlines_size")
+
+        # Override systrace defaults from target conf
+        if conf and ('systrace' in conf):
+            if 'categories' in conf['systrace']:
+                events = conf['systrace']['categories']
+            if 'extra_categories' in conf['systrace']:
+                events += conf['systrace']['extra_categories']
+            if 'buffsize' in conf['systrace']:
+                buffsize = int(conf['systrace']['buffsize'])
+            if 'extra_events' in conf['systrace']:
+                for ev in conf['systrace']['extra_events']:
+                    log.info("systrace_start: Enabling extra ftrace event {}".format(ev))
+                    ev_file = target.target.execute("ls /sys/kernel/debug/tracing/events/*/{}/enable".format(ev))
+                    cmd = "echo 1 > {}".format(ev_file)
+                    target.target.execute(cmd, as_root=True)
+            if 'event_triggers' in conf['systrace']:
+                for ev in conf['systrace']['event_triggers'].keys():
+                    tr_file = target.target.execute("ls /sys/kernel/debug/tracing/events/*/{}/trigger".format(ev))
+                    cmd = "echo {} > {}".format(conf['systrace']['event_triggers'][ev], tr_file)
+                    target.target.execute(cmd, as_root=True, check_exit_code=False)
 
         # Check which systrace binary is available under CATAPULT_HOME
         for systrace in ['systrace.py', 'run_systrace.py']:
@@ -47,9 +72,12 @@ class System(object):
                 return None
 
         #  Format the command according to the specified arguments
-        systrace_pattern = "{} -e {} -o {} {}"
-        trace_cmd = systrace_pattern.format(systrace_path, target.conf['device'],
-                                            trace_file, " ".join(events))
+        device = target.conf.get('device', '')
+        if device:
+            device = "-e {}".format(device)
+        systrace_pattern = "{} {} -o {} {} -b {}"
+        trace_cmd = systrace_pattern.format(systrace_path, device,
+                                            trace_file, " ".join(events), buffsize)
         if time is not None:
             trace_cmd += " -t {}".format(time)
 
@@ -80,6 +108,37 @@ class System(object):
         except TargetError:
             log = logging.getLogger('System')
             log.warning('Failed to toggle airplane mode, permission denied.')
+
+    @staticmethod
+    def _set_svc(target, cmd, on=True):
+        mode = 'enable' if on else 'disable'
+        try:
+            target.execute('svc {} {}'.format(cmd, mode), as_root=True)
+        except TargetError:
+            log = logging.getLogger('System')
+            log.warning('Failed to toggle {} mode, permission denied.'\
+                        .format(cmd))
+
+    @staticmethod
+    def set_mobile_data(target, on=True):
+        """
+        Set mobile data connectivity
+        """
+        System._set_svc(target, 'data', on)
+
+    @staticmethod
+    def set_wifi(target, on=True):
+        """
+        Set mobile data connectivity
+        """
+        System._set_svc(target, 'wifi', on)
+
+    @staticmethod
+    def set_nfc(target, on=True):
+        """
+        Set mobile data connectivity
+        """
+        System._set_svc(target, 'nfc', on)
 
     @staticmethod
     def start_app(target, apk_name):
@@ -117,6 +176,21 @@ class System(object):
         :type action_args: str
         """
         target.execute('am start -a {} {}'.format(action, action_args))
+
+    @staticmethod
+    def screen_always_on(target, enable=True):
+        """
+        Keep the screen always on
+
+        :param enable: True or false
+        """
+        param = 'true'
+        if not enable:
+            param = 'false'
+
+        log = logging.getLogger('System')
+        log.info('Setting screen always on to {}'.format(param))
+        target.execute('svc power stayon {}'.format(param))
 
     @staticmethod
     def force_stop(target, apk_name, clear=False):
@@ -275,6 +349,43 @@ class System(object):
         target.execute('input keyevent KEYCODE_SLEEP')
 
     @staticmethod
+    def volume(target, times=1, direction='down'):
+        """
+        Increase or decrease volume
+
+        :param target: instance of devlib Android target
+        :type target: devlib.target.AndroidTarget
+
+        :param times: number of times to perform operation
+        :type times: int
+
+        :param direction: which direction to increase (up/down)
+        :type direction: str
+        """
+        for i in range(times):
+            if direction == 'up':
+                target.execute('input keyevent KEYCODE_VOLUME_UP')
+            elif direction == 'down':
+                target.execute('input keyevent KEYCODE_VOLUME_DOWN')
+
+    @staticmethod
+    def wakelock(target, name='lisa', take=False):
+        """
+        Take or release wakelock
+
+        :param target: instance of devlib Android target
+        :type target: devlib.target.AndroidTarget
+
+        :param name: name of the wakelock
+        :type name: str
+
+        :param take: whether to take or release the wakelock
+        :type take: bool
+        """
+        path = '/sys/power/wake_lock' if take else '/sys/power/wake_unlock'
+        target.execute('echo {} > {}'.format(name, path))
+
+    @staticmethod
     def gfxinfo_reset(target, apk_name):
         """
         Reset gfxinfo frame statistics for a given app.
@@ -299,6 +410,16 @@ class System(object):
         :type apk_name: str
         """
         target.execute('dumpsys SurfaceFlinger {} reset'.format(apk_name))
+
+    @staticmethod
+    def logcat_reset(target):
+        """
+        Clears the logcat buffer.
+
+        :param target: instance of devlib Android target
+        :type target: devlib.target.AndroidTarget
+        """
+        target.execute('logcat -c')
 
     @staticmethod
     def gfxinfo_get(target, apk_name, out_file):
@@ -333,6 +454,19 @@ class System(object):
         """
         adb_command(target.adb_name,
                     'shell dumpsys SurfaceFlinger {} > {}'.format(apk_name, out_file))
+
+    @staticmethod
+    def logcat_get(target, out_file):
+        """
+        Collect the logs from logcat.
+
+        :param target: instance of devlib Android target
+        :type target: devlib.target.AndroidTarget
+
+        :param out_file: output file name
+        :type out_file: str
+        """
+        adb_command(target.adb_name, 'logcat * -d > {}'.format(out_file))
 
     @staticmethod
     def monkey(target, apk_name, event_count=1):

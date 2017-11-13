@@ -145,6 +145,17 @@ class TestEnv(ShareState):
             buffsize
                 Size of buffer. Default is 10240.
 
+        **systrace**
+            Configuration for systrace. Dictionary with keys:
+            categories:
+                overide the list of categories enabled
+            extra_categories:
+                append to the default list of categories
+            extra_events:
+                additional ftrace events to manually enable during systrac'ing
+            buffsize:
+                Size of ftrace buffer that systrace uses
+
         **results_dir**
             location of results of the experiments
 
@@ -590,7 +601,7 @@ class TestEnv(ShareState):
             if not os.path.isfile(binary):
                 binary = '{}/tools/{}/{}'\
                          .format(basepath, self.target.abi, tool)
-                tools_to_install.append(binary)
+            tools_to_install.append(binary)
 
         for tool_to_install in tools_to_install:
             self.target.install(tool_to_install)

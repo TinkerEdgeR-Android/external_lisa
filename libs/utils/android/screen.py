@@ -17,6 +17,7 @@
 
 import logging
 from system import System
+from time import sleep
 
 class Screen(object):
     """
@@ -129,6 +130,7 @@ class Screen(object):
         Screen.set_brightness(target)
         Screen.set_dim(target)
         Screen.set_timeout(target)
+        Screen.set_doze_always_on(target)
 
     @staticmethod
     def get_screen_density(target):
@@ -150,7 +152,18 @@ class Screen(object):
     @staticmethod
     def unlock(target):
        Screen.set_screen(target, on=True)
+       sleep(1)
        System.menu(target)
        System.home(target)
+
+    @staticmethod
+    def set_doze_always_on(target, on=True):
+        log = logging.getLogger('Screen')
+        if not on:
+            log.info('Setting doze always on OFF')
+            target.execute('settings put secure doze_always_on 0')
+            return
+        log.info('Setting doze always on ON')
+        target.execute('settings put secure doze_always_on 1')
 
 # vim :set tabstop=4 shiftwidth=4 expandtab

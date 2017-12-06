@@ -30,7 +30,7 @@ import logging
 from analysis_register import AnalysisRegister
 from collections import namedtuple
 from devlib.utils.misc import memoized
-from trappy.utils import listify
+from trappy.utils import listify, handle_duplicate_index
 
 
 NON_IDLE_STATE = -1
@@ -71,16 +71,23 @@ class Trace(object):
 
     :param plots_prefix: prefix for plots file names
     :type plots_prefix: str
+
+    :param cgroup_info: add cgroup information for sanitization
+      example:
+        {
+            'controller_ids': { 2: 'schedtune', 4: 'cpuset' },
+            'cgroups': [ 'root', 'background', 'foreground' ],  # list of allowed cgroup names
+        }
+    :type cgroup_info: dict
     """
 
-    def __init__(self, platform, data_dir, events,
+    def __init__(self, platform, data_dir, events=None,
                  tasks=None, window=(0, None),
                  normalize_time=True,
                  trace_format='FTrace',
                  plots_dir=None,
                  plots_prefix='',
-                 event_callbacks={},
-                 build_df=True):
+                 cgroup_info={}):
 
         # The platform used to run the experiments
         self.platform = platform
@@ -110,10 +117,6 @@ class Trace(object):
         # List of events required by user
         self.events = []
 
-        # Stuff for event callback support
-        self.event_callbacks = event_callbacks
-        self.build_df = build_df
-
         # List of events available in the parsed trace
         self.available_events = []
 
@@ -138,14 +141,12 @@ class Trace(object):
             self.plots_dir = self.data_dir
         self.plots_prefix = plots_prefix
 
-        self.__registerTraceEvents(events)
+        # Cgroup info for sanitization
+        self.cgroup_info = cgroup_info
+
+        self.__registerTraceEvents(events) if events else None
         self.__parseTrace(data_dir, tasks, window, normalize_time,
                           trace_format)
-
-        if not self.build_df:
-            self._log.info('Data frames not built for the trace')
-            return
-
         self.__computeTimeSpan()
 
         # Minimum and Maximum x_time to use for all plots
@@ -240,7 +241,7 @@ class Trace(object):
         :type trace_format: str
         """
         self._log.debug('Loading [sched] events from trace in [%s]...', path)
-        self._log.debug('Parsing events: %s', self.events)
+        self._log.debug('Parsing events: %s', self.events if self.events else 'ALL')
         if trace_format.upper() == 'SYSTRACE' or path.endswith('html'):
             self._log.debug('Parsing SysTrace format...')
             trace_class = trappy.SysTrace
@@ -252,10 +253,9 @@ class Trace(object):
         else:
             raise ValueError("Unknown trace format {}".format(trace_format))
 
-        self.ftrace = trace_class(path, scope="custom", events=self.events,
-                                  window=window, normalize_time=normalize_time,
-                                  event_callbacks=self.event_callbacks,
-                                  build_df=self.build_df)
+        scope = 'custom' if self.events else 'all'
+        self.ftrace = trace_class(path, scope=scope, events=self.events,
+                                  window=window, normalize_time=normalize_time)
 
         # Load Functions profiling data
         has_function_stats = self._loadFunctionsStats(path)
@@ -266,21 +266,23 @@ class Trace(object):
             if has_function_stats:
                 self._log.info('Trace contains only functions stats')
                 return
-            elif not self.build_df:
-                return
             raise ValueError('The trace does not contain useful events '
                              'nor function stats')
 
-        # Setup internal data reference to interesting events/dataframes
+        # Sanitize cgroup info if any
+        self._sanitize_CgroupAttachTask()
 
-        self._sanitize_SchedLoadAvgCpu()
-        self._sanitize_SchedLoadAvgTask()
-        self._sanitize_SchedCpuCapacity()
-        self._sanitize_SchedBoostCpu()
-        self._sanitize_SchedBoostTask()
-        self._sanitize_SchedEnergyDiff()
-        self._sanitize_SchedOverutilized()
-        self._sanitize_CpuFrequency()
+        # Santization not possible if platform missing
+        if not self.platform:
+            # Setup internal data reference to interesting events/dataframes
+            self._sanitize_SchedLoadAvgCpu()
+            self._sanitize_SchedLoadAvgTask()
+            self._sanitize_SchedCpuCapacity()
+            self._sanitize_SchedBoostCpu()
+            self._sanitize_SchedBoostTask()
+            self._sanitize_SchedEnergyDiff()
+            self._sanitize_SchedOverutilized()
+            self._sanitize_CpuFrequency()
 
         self.__loadTasksNames(tasks)
 
@@ -322,6 +324,7 @@ class Trace(object):
                 tasks = df[name_key].unique()
             self.getTasks(df, tasks, name_key=name_key, pid_key=pid_key)
             self._scanTasks(df, name_key=name_key, pid_key=pid_key)
+            self._scanTgids(df)
 
         if 'sched_switch' in self.available_events:
             load(tasks, 'sched_switch', 'next_comm', 'next_pid')
@@ -371,6 +374,15 @@ class Trace(object):
             self._log.debug('Overutilized time: %.6f [s] (%.3f%% of trace time)',
                            self.overutilized_time, self.overutilized_prc)
 
+    def _scanTgids(self, df):
+        if not '__tgid' in df.columns:
+            return
+        df = df[['__pid', '__tgid']]
+        df = df.drop_duplicates(keep='first').set_index('__pid')
+        df.rename(columns = { '__pid': 'pid', '__tgid': 'tgid' },
+                              inplace=True)
+        self._pid_tgid = df
+
     def _scanTasks(self, df, name_key='comm', pid_key='pid'):
         """
         Extract tasks names and PIDs from the input data frame. The data frame
@@ -387,7 +399,7 @@ class Trace(object):
         :param pid_key: The name of the dataframe columns containing task PIDs
         :type pid_key: str
         """
-        df = df[[name_key, pid_key]]
+        df = df[[name_key, pid_key]].drop_duplicates()
         self._tasks_by_name = df.set_index(name_key)
         self._tasks_by_pid = df.set_index(pid_key)
 
@@ -418,6 +430,9 @@ class Trace(object):
             return list({task[0] for task in
                          self._tasks_by_pid.ix[pid].values})
         return [self._tasks_by_pid.ix[pid].values[0]]
+
+    def getTgidFromPid(self, pid):
+        return _pid_tgid.ix[pid].values[0]
 
     def getTasks(self, dataframe=None,
                  task_names=None, name_key='comm', pid_key='pid'):
@@ -530,6 +545,101 @@ class Trace(object):
             return df
         return df.loc[df.index.get_level_values(1).isin(listify(functions))]
 
+    # cgroup_attach_task with just merged fake and real events
+    def _cgroup_attach_task(self):
+        cgroup_events = ['cgroup_attach_task', 'cgroup_attach_task_devlib']
+        df = None
+
+        if set(cgroup_events).isdisjoint(set(self.available_events)):
+            self._log.error('atleast one of {} is needed for cgroup_attach_task event generation'.format(cgroup_events))
+            return None
+
+        for cev in cgroup_events:
+            if not cev in self.available_events:
+                continue
+            cdf = self._dfg_trace_event(cev)
+            cdf = cdf[['__line', 'pid', 'controller', 'cgroup']]
+            if not isinstance(df, pd.DataFrame):
+                df = cdf
+            else:
+                df = pd.concat([cdf, df])
+
+        # Always drop na since this DF is used as secondary
+        df.dropna(inplace=True, how='any')
+        return df
+
+    @memoized
+    def _dfg_cgroup_attach_task(self, controllers = ['schedtune', 'cpuset']):
+        # Since fork doesn't result in attach events, generate fake attach events
+        # The below mechanism doesn't work to propogate nested fork levels:
+        # For ex:
+        # cgroup_attach_task: pid=1166
+        # fork: pid=1166 child_pid=2222  <-- fake attach generated
+        # fork: pid=2222 child_pid=3333  <-- fake attach not generated
+        def fork_add_cgroup(fdf, cdf, controller):
+            cdf = cdf[cdf['controller'] == controller]
+            ret_df = trappy.utils.merge_dfs(fdf, cdf, pivot='pid')
+            return ret_df
+
+        if not 'sched_process_fork' in self.available_events:
+            self._log.error('sched_process_fork is mandatory to get proper cgroup_attach events')
+            return None
+        fdf = self._dfg_trace_event('sched_process_fork')
+
+        forks_len = len(fdf)
+        forkdf = fdf
+        cdf = self._cgroup_attach_task()
+        for idx, c in enumerate(controllers):
+            fdf = fork_add_cgroup(fdf, cdf, c)
+            if (idx != (len(controllers) - 1)):
+                fdf = pd.concat([fdf, forkdf]).sort_values(by='__line')
+
+        fdf = fdf[['__line', 'child_pid', 'controller', 'cgroup']]
+        fdf.rename(columns = { 'child_pid': 'pid' }, inplace=True)
+
+        # Always drop na since this DF is used as secondary
+        fdf.dropna(inplace=True, how='any')
+
+        new_forks_len = len(fdf) / len(controllers)
+
+        fdf = pd.concat([fdf, cdf]).sort_values(by='__line')
+
+        if new_forks_len < forks_len:
+            dropped = forks_len - new_forks_len
+            self._log.info("Couldn't attach all forks cgroup with-attach events ({} dropped)".format(dropped))
+        return fdf
+
+    @memoized
+    def _dfg_sched_switch_cgroup(self, controllers = ['schedtune', 'cpuset']):
+        def sched_switch_add_cgroup(sdf, cdf, controller, direction):
+            cdf = cdf[cdf['controller'] == controller]
+
+            ret_df = sdf.rename(columns = { direction + '_pid': 'pid' })
+            ret_df = trappy.utils.merge_dfs(ret_df, cdf, pivot='pid')
+            ret_df.rename(columns = { 'pid': direction + '_pid' }, inplace=True)
+
+            ret_df.drop('controller', axis=1, inplace=True)
+            ret_df.rename(columns = { 'cgroup': direction + '_' + controller }, inplace=True)
+            return ret_df
+
+        if not 'sched_switch' in self.available_events:
+            self._log.error('sched_switch is mandatory to generate sched_switch_cgroup event')
+            return None
+        sdf = self._dfg_trace_event('sched_switch')
+        cdf = self._dfg_cgroup_attach_task()
+
+        for c in controllers:
+            sdf = sched_switch_add_cgroup(sdf, cdf, c, 'next')
+            sdf = sched_switch_add_cgroup(sdf, cdf, c, 'prev')
+
+        # Augment with TGID information
+        sdf = sdf.join(self._pid_tgid, on='next_pid').rename(columns = {'tgid': 'next_tgid'})
+        sdf = sdf.join(self._pid_tgid, on='prev_pid').rename(columns = {'tgid': 'prev_tgid'})
+
+        df = self._tasks_by_pid.rename(columns = { 'next_comm': 'comm' })
+        sdf = sdf.join(df, on='next_tgid').rename(columns = {'comm': 'next_tgid_comm'})
+        sdf = sdf.join(df, on='prev_tgid').rename(columns = {'comm': 'prev_tgid_comm'})
+        return sdf
 
 ###############################################################################
 # Trace Events Sanitize Methods
@@ -679,6 +789,60 @@ class Trace(object):
         df['start'] = df.index
         df['len'] = (df.start - df.start.shift()).fillna(0).shift(-1)
         df.drop('start', axis=1, inplace=True)
+
+    # Sanitize cgroup information helper
+    def _helper_sanitize_CgroupAttachTask(self, df, allowed_cgroups, controller_id_name):
+        # Drop rows that aren't in the root-id -> name map
+        df = df[df['dst_root'].isin(controller_id_name.keys())]
+
+        def get_cgroup_name(path, valid_names):
+            name = os.path.basename(path)
+            name = 'root' if not name in valid_names else name
+            return name
+
+        def get_cgroup_names(rows):
+            ret = []
+            for r in rows.iterrows():
+                 ret.append(get_cgroup_name(r[1]['dst_path'], allowed_cgroups))
+            return ret
+
+        def get_controller_names(rows):
+            ret = []
+            for r in rows.iterrows():
+                 ret.append(controller_id_name[r[1]['dst_root']])
+            return ret
+
+        # Sanitize cgroup names
+        # cgroup column isn't in mainline, add it in
+        # its already added for some out of tree kernels so check first
+        if not 'cgroup' in df.columns:
+            if not 'dst_path' in df.columns:
+                raise RuntimeError('Cant santize cgroup DF, need dst_path')
+            df = df.assign(cgroup = get_cgroup_names)
+
+        # Sanitize controller names
+        if not 'controller' in df.columns:
+            if not 'dst_root' in df.columns:
+                raise RuntimeError('Cant santize cgroup DF, need dst_path')
+            df = df.assign(controller = get_controller_names)
+
+        return df
+
+    def _sanitize_CgroupAttachTask(self):
+        def sanitize_cgroup_event(name):
+            if not name in self.available_events:
+                return
+
+            df = self._dfg_trace_event(name)
+
+            if len(df.groupby(level=0).filter(lambda x: len(x) > 1)) > 0:
+                self._log.warning('Timstamp Collisions seen in {} event!'.format(name))
+
+            df = self._helper_sanitize_CgroupAttachTask(df, self.cgroup_info['cgroups'],
+                                              self.cgroup_info['controller_ids'])
+            getattr(self.ftrace, name).data_frame = df
+        sanitize_cgroup_event('cgroup_attach_task')
+        sanitize_cgroup_event('cgroup_attach_task_devlib')
 
     def _chunker(self, seq, size):
         """
@@ -863,7 +1027,9 @@ class Trace(object):
             entry_0 = pd.Series(cpu_active.iloc[0] ^ 1, index=[start_time])
             cpu_active = pd.concat([entry_0, cpu_active])
 
-        return cpu_active
+        # Fix sequences of wakeup/sleep events reported with the same index
+        return handle_duplicate_index(cpu_active)
+
 
     @memoized
     def getClusterActiveSignal(self, cluster):

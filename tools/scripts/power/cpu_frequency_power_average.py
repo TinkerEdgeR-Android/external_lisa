@@ -20,6 +20,7 @@ from __future__ import division
 import os
 import re
 import json
+import glob
 import argparse
 import pandas as pd
 import numpy as np
@@ -33,153 +34,213 @@ from power_average import PowerAverage
 def average(values):
     return sum(values) / len(values)
 
-class Cluster:
-    def __init__(self, cpus, freqs):
-        # Cpus in the cluster
-        self.cpus = cpus
-        # Frequencies supported by the cluster
-        self.freqs = freqs
-        # The average cluster cost of this cluster
-        self.cluster_cost = 0.0
-        # The average cpu costs by frequency
-        self.cpu_costs = {}
-        # Samples is a dict whose keys are tuples of cpus. Its values are dicts
-        # whose keys are frequencies and values are sample averages.
-        # For example: to access the sample averages for cpus 0, 1, 2 at frequency
-        # 595200. avg = samples[(0, 1, 2)][595200]
-        self.samples = {}
+class SampleReader:
+    def __init__(self, results_dir, column):
+        self.results_dir = results_dir
+        self.column = column
 
-    def contains(self, cpus):
-        return set(self.cpus).issuperset(set(cpus))
+    def get(self, filename):
+        files = glob.glob(os.path.join(self.results_dir, filename))
+        if len(files) != 1:
+            raise ValueError('Multiple files match pattern')
+        return PowerAverage.get(files[0], self.column)
 
-    def add_sample(self, cpus, freq, cost):
-        # Convert the cpus to a tuple because mutable lists cannot be used as
-        # keys to dicts.
-        cpus_tuple = tuple(cpus)
+class Cpu:
+    def __init__(self, platform_file, sample_reader):
+        self.platform_file = platform_file
+        self.sample_reader = sample_reader
+        # This is the additional cost when any cluster is on. It is seperate from
+        # the cluster cost because it is not duplicated when a second cluster
+        # turns on.
+        self.active_cost = -1.0
 
-        if cpus_tuple not in self.samples:
-            self.samples[cpus_tuple] = {}
+        # Read in the cluster and frequency information from the plaform.json
+        with open(platform_file, 'r') as f:
+            platform = json.load(f)
+        self.clusters = {i : Cluster(self.sample_reader, i, platform["clusters"][i],
+                platform["freqs"][i]) for i in sorted(platform["clusters"])}
 
-        self.samples[cpus_tuple][freq] = cost
+        if len(self.clusters) != 2:
+            raise ValueError('Only cpus with 2 clusters are supported')
 
-    def get_sample(self, cpus, freq):
-        return self.samples[tuple(cpus)][freq]
+        self.compute_costs()
 
     def compute_costs(self):
-        # At any given frequency, the total power usage of the cluster is
-        # total_power = cluster_cost + cpu_cost * n_cpus
+        # Compute initial core costs by freq. These are necessary for computing the
+        # cluster and active costs. However, since the cluster and active costs are computed
+        # using averages across all cores and frequencies, we will need to adjust the
+        # core cost at the end.
         #
-        # Given this formula we can compute the cluster cost and cpu cost at
-        # each frequency.
-        #
-        # While the computed cluster_cost can vary based on frequency, we need
-        # to get one cluster_cost. To do this, we will
-        # take the average cluster_cost.
-        #
-        # Once we have an average cluster_cost, we can go back and compute the
-        # cost of an additional cpu at each frequency relative to the average
-        # cluster_cost.
+        # For example: The total cpu cost of core 0 on cluster 0 running at
+        # a given frequency is 25. We initally compute the core cost as 10.
+        # However the active and cluster averages end up as 9 and 3. 10 + 9 + 3 is
+        # 22 not 25. We can adjust the core cost 13 to cover this error.
+        for cluster in self.clusters:
+            self.clusters[cluster].compute_initial_core_costs()
 
-        # Compute cluster cost
+        # Compute the cluster costs
+        cluster0 = self.clusters.values()[0]
+        cluster1 = self.clusters.values()[1]
+        cluster0.compute_cluster_cost(cluster1)
+        cluster1.compute_cluster_cost(cluster0)
+
+        # Compute the active cost as an average of computed active costs by cluster
+        self.active_cost = average([self.clusters[cluster].compute_active_cost() for cluster in self.clusters])
+
+        # Compute final core costs. This will help correct for any errors introduced
+        # by the averaging of the cluster and active costs.
+        for cluster in self.clusters:
+            self.clusters[cluster].compute_final_core_costs(self.active_cost)
+
+    def get_clusters(self):
+        with open(self.platform_file, 'r') as f:
+            platform = json.load(f)
+        return platform["clusters"]
+
+    def get_active_cost(self):
+        return self.active_cost
+
+    def get_cluster_cost(self, cluster):
+        return self.clusters[cluster].get_cluster_cost()
+
+    def get_cores(self, cluster):
+        return self.clusters[cluster].get_cores()
+
+    def get_core_freqs(self, cluster):
+        return self.clusters[cluster].get_freqs()
+
+    def get_core_cost(self, cluster, freq):
+        return self.clusters[cluster].get_core_cost(freq)
+
+    def dump(self):
+        print 'Active cost: {}'.format(self.active_cost)
+        for cluster in self.clusters:
+            self.clusters[cluster].dump()
+
+class Cluster:
+    def __init__(self, sample_reader, handle, cores, freqs):
+        self.sample_reader = sample_reader
+        self.handle = handle
+        self.cores = cores
+        self.cluster_cost = -1.0
+        self.core_costs = {freq:-1.0 for freq in freqs}
+
+    def compute_initial_core_costs(self):
+        # For every frequency, freq
+        for freq, _ in self.core_costs.iteritems():
+            total_costs = []
+            core_costs = []
+
+            # Store the total cost for turning on 1 to len(cores) on the
+            # cluster at freq
+            for cnt in range(1, len(self.cores)+1):
+                total_costs.append(self.get_sample_avg(cnt, freq))
+
+            # Compute the additional power cost of turning on another core at freq.
+            for i in range(len(total_costs)-1):
+                core_costs.append(total_costs[i+1] - total_costs[i])
+
+            # The initial core cost is the average of the additional power to add
+            # a core at freq
+            self.core_costs[freq] = average(core_costs)
+
+    def compute_final_core_costs(self, active_cost):
+        # For every frequency, freq
+        for freq, _ in self.core_costs.iteritems():
+            total_costs = []
+            core_costs = []
+
+            # Store the total cost for turning on 1 to len(cores) on the
+            # cluster at freq
+            for core_cnt in range(1, len(self.cores)+1):
+                total_costs.append(self.get_sample_avg(core_cnt, freq))
+
+            # Recompute the core cost as the sample average minus the cluster and
+            # active costs divided by the number of cores on. This will help
+            # correct for any error introduced by averaging the cluster and
+            # active costs.
+            for i, total_cost in enumerate(total_costs):
+                core_cnt = i + 1
+                core_costs.append((total_cost - self.cluster_cost - active_cost) / (core_cnt))
+
+            # The final core cost is the average of the core costs at freq
+            self.core_costs[freq] = average(core_costs)
+
+    def compute_cluster_cost(self, other_cluster=None):
+        # Create a template for the file name. For each frequency we will be able
+        # to easily substitute it into the file name.
+        template = '{}_samples.csv'.format('_'.join(sorted(
+                ['cluster{}-cores?-freq{{}}'.format(self.handle),
+                'cluster{}-cores?-freq{}'.format(other_cluster.get_handle(),
+                other_cluster.get_min_freq())])))
+
+        # Get the cost of running a single cpu at min frequency on the other cluster
         cluster_costs = []
+        other_cluster_total_cost = other_cluster.get_sample_avg(1, other_cluster.get_min_freq())
 
-        for freq in self.freqs:
-            for n in range(1, len(self.cpus)):
-                # cluster_cost + cpu_cost * n
-                n_cost = self.get_sample(self.cpus[:n], freq)
-                # cluster_cost + cpu_cost * (n + 1)
-                n_plus_one_cost = self.get_sample(self.cpus[:n+1], freq)
+        # For every frequency
+        for freq, core_cost in self.core_costs.iteritems():
+            # Get the cost of running a single core on this cluster at freq and
+            # a single core on the other cluster at min frequency
+            total_cost = self.sample_reader.get(template.format(freq))
+            # Get the cluster cost by subtracting all the other costs from the
+            # total cost so that the only cost that remains is the cluster cost
+            # of this cluster
+            cluster_costs.append(total_cost - core_cost - other_cluster_total_cost)
 
-                # (cluster_cost + cpu_cost * (n + 1)) - (cluster_cost + cpu_cost * n)
-                cpu_cost = n_plus_one_cost - n_cost
-
-                # cpu_cost * n
-                n_cpu_cost = cpu_cost * n
-
-                # (cluster_cost + cpu_cost * n) - (cpu_cost * n)
-                cluster_costs.append(n_cost - n_cpu_cost)
-
+        # Return the average calculated cluster cost
         self.cluster_cost = average(cluster_costs)
 
-        # Compute cpu costs
-        for freq in self.freqs:
-            cpu_costs = []
+    def compute_active_cost(self):
+        active_costs = []
 
-            for n in range(1, len(self.cpus) + 1):
-                # cluster_cost + cpu_cost * n
-                total_cost = self.get_sample(self.cpus[:n], freq)
+        # For every frequency
+        for freq, core_cost in self.core_costs.iteritems():
+            # For every core
+            for i, core in enumerate(self.cores):
+                core_cnt = i + 1
+                # Subtract the core and cluster costs from each total cost.
+                # The remaining cost is the active cost
+                active_costs.append(self.get_sample_avg(core_cnt, freq)
+                        - core_cost*core_cnt - self.cluster_cost)
 
-                # ((cluster_cost + cpu_cost * n) - cluster_cost) / n
-                cpu_costs.append((total_cost - self.cluster_cost) / n)
+        # Return the average active cost
+        return average(active_costs)
 
-            self.cpu_costs[freq] = average(cpu_costs)
+    def get_handle(self):
+        return self.handle
 
-    def get_cpus(self):
-        return self.cpus
+    def get_min_freq(self):
+        return min(self.core_costs, key=self.core_costs.get)
+
+    def get_sample_avg(self, core_cnt, freq):
+        core_str = ''.join('{}-'.format(self.cores[i]) for i in range(core_cnt))
+        filename = 'cluster{}-cores{}freq{}_samples.csv'.format(self.handle, core_str, freq)
+        return self.sample_reader.get(filename)
 
     def get_cluster_cost(self):
         return self.cluster_cost
 
-    def get_cpu_freqs(self):
-        return sorted(list(self.cpu_costs.keys()))
+    def get_cores(self):
+        return self.cores
 
-    def get_cpu_cost(self, freq):
-        return self.cpu_costs[freq]
+    def get_freqs(self):
+        return self.core_costs.keys()
 
-    def __str__(self):
-        cpu_cost_str = "".join("\tfreq: %s \tcost: %s\n" % (f, self.cpu_costs[f])
-                for f in sorted(self.cpu_costs))
-        return "Cluster: {}\nCluster cost: {}\nCpu cost:\n{}".format(self.cpus,
-                self.cluster_cost, cpu_cost_str)
+    def get_core_cost(self, freq):
+        return self.core_costs[freq]
 
-    __repr__ = __str__
-
+    def dump(self):
+        print 'Cluster {} cost: {}'.format(self.handle, self.cluster_cost)
+        for freq in sorted(self.core_costs):
+            print '\tfreq {} cost: {}'.format(freq, self.core_costs[freq])
 
 class CpuFrequencyPowerAverage:
     @staticmethod
     def get(results_dir, platform_file, column):
-        clusters = []
-
-        CpuFrequencyPowerAverage._populate_clusters(clusters, platform_file)
-        CpuFrequencyPowerAverage._parse_samples(clusters, results_dir, column)
-        CpuFrequencyPowerAverage._compute_costs(clusters)
-
-        return clusters
-
-    @staticmethod
-    def _populate_clusters(clusters, platform_file):
-        with open(platform_file, 'r') as f:
-            platform = json.load(f)
-
-        for i in sorted(platform["clusters"]):
-            clusters.append(Cluster(platform["clusters"][i], platform["freqs"][i]))
-
-    @staticmethod
-    def _parse_samples(clusters, results_dir, column):
-        for filename in os.listdir(results_dir):
-            if filename.endswith(".csv"):
-
-                # Extract the cpu and frequency information from the file name
-                m = re.match('cpus(?P<cpus>(\d-)+)freq(?P<freq>\d*)-samples.csv',
-                    filename)
-
-                # Get the cpus running during the sample in an int tuple
-                cpus = tuple(map(int, m.group('cpus')[:-1].split('-')))
-                freq = int(m.group('freq'))
-
-                # Add the cost to the correct cluster
-                cost = PowerAverage.get(os.path.join(results_dir, filename),
-                        column)
-
-                for cluster in clusters:
-                    if cluster.contains(cpus):
-                        cluster.add_sample(cpus, freq, cost)
-                        break;
-
-    @staticmethod
-    def _compute_costs(clusters):
-        for cluster in clusters:
-            cluster.compute_costs()
+        sample_reader = SampleReader(results_dir, column)
+        cpu = Cpu(platform_file, sample_reader)
+        return cpu
 
 
 parser = argparse.ArgumentParser(
@@ -187,7 +248,7 @@ parser = argparse.ArgumentParser(
                     " specify a time interval over which to calculate the sample.")
 
 parser.add_argument("--column", "-c", type=str, required=True,
-                    help="The name of the column in the sample.csv's that"
+                    help="The name of the column in the samples.csv's that"
                     " contain the power values to average.")
 
 parser.add_argument("--results_dir", "-d", type=str,
@@ -205,5 +266,5 @@ parser.add_argument("--platform_file", "-p", type=str,
 if __name__ == "__main__":
     args = parser.parse_args()
 
-    print CpuFrequencyPowerAverage.get(args.results_dir, args.platform_file,
-            args.column)
+    cpu = CpuFrequencyPowerAverage.get(args.results_dir, args.platform_file, args.column)
+    cpu.dump()

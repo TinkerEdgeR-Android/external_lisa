@@ -51,6 +51,7 @@ class SystemUi(Workload):
     "SystemUiJankTests#testRecentAppsDismiss",
     "SystemUiJankTests#testNotificationListPull",
     "SystemUiJankTests#testNotificationListPull_manyNotifications",
+    "SystemUiJankTests#testNotificationListScroll",
     "SystemUiJankTests#testQuickSettingsPull",
     "SystemUiJankTests#testUnlock",
     "SystemUiJankTests#testExpandGroup",
